@@ -1,0 +1,8 @@
+# runtime state — recorded agent finishes
+state/
+
+# macOS junk
+.DS_Store
+
+# logs
+*.log
