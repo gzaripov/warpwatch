@@ -6,8 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-chmod +x "$ROOT/scripts/notify.sh" "$ROOT/scripts/menubar-clear.sh" 2>/dev/null || true
-chmod +x "$ROOT"/swiftbar/*.sh 2>/dev/null || true
+chmod +x "$ROOT"/scripts/*.sh "$ROOT"/swiftbar/*.sh 2>/dev/null || true
 mkdir -p "$HOME/.claude/warpwatch/state"
 
 cat <<EOF
@@ -18,8 +17,10 @@ warpwatch files are ready at:
 Merge into ~/.claude/settings.json (keep any existing "hooks"):
 
   "hooks": {
-    "Stop":         [ { "hooks": [ { "type": "command", "command": "\"$ROOT/scripts/notify.sh\" done",  "timeout": 10 } ] } ],
-    "Notification": [ { "hooks": [ { "type": "command", "command": "\"$ROOT/scripts/notify.sh\" input", "timeout": 10 } ] } ]
+    "UserPromptSubmit": [ { "hooks": [ { "type": "command", "command": "\"$ROOT/scripts/notify.sh\" start", "timeout": 10 } ] } ],
+    "Stop":             [ { "hooks": [ { "type": "command", "command": "\"$ROOT/scripts/notify.sh\" done",  "timeout": 10 } ] } ],
+    "Notification":     [ { "hooks": [ { "type": "command", "command": "\"$ROOT/scripts/notify.sh\" input", "timeout": 10 } ] } ],
+    "SessionEnd":       [ { "hooks": [ { "type": "command", "command": "\"$ROOT/scripts/notify.sh\" end",   "timeout": 10 } ] } ]
   }
 
 ── 2. Menu-bar item (SwiftBar) ──────────────────────────────────────────────

@@ -1,11 +1,11 @@
 {
   "name": "warpwatch",
-  "version": "0.2.0",
-  "description": "When a Claude Code agent finishes (or needs input) in Warp, warpwatch plays a sound and surfaces it in a macOS menu-bar list — click to jump straight to the EXACT Warp tab the agent runs in, via warp://session deep links. Optional notification / dialog / auto-focus modes. Tab-aware, and immune to Do Not Disturb.",
+  "version": "0.3.0",
+  "description": "A macOS menu-bar dashboard of your Claude Code agents in Warp. One row per tab, named after its task, with a live status (working / finished / needs-input). The menu-bar icon stays grey while agents work and lights up when a tab wants you — click it to jump straight to the EXACT Warp tab (via warp://session deep links). Plays a sound on finish; optional notification / dialog / auto-focus modes.",
   "author": {
     "name": "Grigory Zaripov",
     "url": "https://github.com/gzaripov"
   },
   "homepage": "https://github.com/gzaripov/warpwatch",
-  "keywords": ["warp", "macos", "menu-bar", "swiftbar", "notifications", "agent", "claude-code"]
+  "keywords": ["warp", "macos", "menu-bar", "swiftbar", "dashboard", "notifications", "agent", "claude-code"]
 }

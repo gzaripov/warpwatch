@@ -1,4 +1,15 @@
 {
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/notify.sh\" start",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
   "Stop": [
     {
       "hooks": [
@@ -16,6 +27,17 @@
         {
           "type": "command",
           "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/notify.sh\" input",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "SessionEnd": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/notify.sh\" end",
           "timeout": 10
         }
       ]
