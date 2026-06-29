@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # <xbar.title>warpwatch</xbar.title>
-# <xbar.version>v0.6.1</xbar.version>
+# <xbar.version>v0.6.2</xbar.version>
 # <xbar.author>Grigory Zaripov</xbar.author>
 # <xbar.author.github>gzaripov</xbar.author.github>
 # <xbar.desc>Per-tab dashboard of Claude Code agents in Warp; click a tab to jump to it.</xbar.desc>
@@ -27,6 +27,10 @@ ICONS="$HERE/../icons"
 OPEN="$HERE/../scripts/menubar-open.sh"
 
 now="$(date +%s)"
+# adapt the row text tint to the menu appearance so colour stays legible on
+# both light and dark menus.
+mode_dark=0
+[ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" = "Dark" ] && mode_dark=1
 waiting=0; working=0; total=0
 if [ -f "$STATE" ]; then
   # "waiting" = the agent stopped and it's your turn (any non-working row,
@@ -67,10 +71,13 @@ if [ "$total" -gt 0 ]; then
     NF>=6 { printf "%d\t%d\t%s\n", rank($2), -$3, $0 }
   ' "$STATE" | sort -t"$(printf '\t')" -k1,1n -k2,2n | cut -f3- | while IFS=$'\t' read -r uuid status epoch name cwd url; do
     [ -n "$uuid" ] || continue
-    # crisp vector status icon (SF Symbol), coloured; hover shows a tooltip.
+    # crisp vector status icon (SF Symbol) + a matching text tint that adapts
+    # to the menu appearance so it stays legible; hover shows a tooltip.
     case "$status" in
-      working) sym="hourglass" ; scol="#0E97A6" ; tip="Agent is working" ;;
-      *)       sym="bell.fill" ; scol="#FF9500" ; tip="Agent is waiting for your input" ;;
+      working) sym="hourglass" ; scol="#0E97A6" ; tip="Agent is working"
+               [ "$mode_dark" = 1 ] && tcol="#4ECDDA" || tcol="#0C7A86" ;;
+      *)       sym="bell.fill" ; scol="#FF9500" ; tip="Agent is waiting for your input"
+               [ "$mode_dark" = 1 ] && tcol="#FFB454" || tcol="#B5650A" ;;
     esac
     d=$(( now - epoch ))
     if   [ "$d" -lt 60 ];    then rel="${d}s"
@@ -79,7 +86,7 @@ if [ "$total" -gt 0 ]; then
     else                          rel="$(( d / 86400 ))d"
     fi
     [ -n "$name" ] || name="warp"
-    echo "$name · $rel | sfimage=$sym sfcolor=$scol tooltip=\"$tip\" shell=$OPEN param1=$uuid terminal=false refresh=true"
+    echo "$name · $rel | sfimage=$sym sfcolor=$scol color=$tcol tooltip=\"$tip\" shell=$OPEN param1=$uuid terminal=false refresh=true"
   done
 else
   echo "No active agents | color=#98989F"
