@@ -20,16 +20,16 @@ MARK='<path d="M136.68 0.549481C136.758 0.227082 137.046 0 137.378 0H237.714C254
 # mark centred at ~36 units wide so there's margin inside the tile too.
 emit() { # name  defs+tile-svg  mark-color
   cat > "$1.svg" <<SVG
-<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 100 100">
   $2
-  <g transform="translate(32,35.6) scale(0.1348)" fill="$3">$MARK</g>
+  <g transform="translate(29,33.2) scale(0.157)" fill="$3">$MARK</g>
 </svg>
 SVG
   echo "wrote $1.svg"
   command -v rsvg-convert >/dev/null && rsvg-convert -w 88 -h 88 "$1.svg" -o "$1.png" || true
 }
 
-TILE='<rect x="20" y="20" width="60" height="60" rx="16"'
+TILE='<rect x="15" y="15" width="70" height="70" rx="18"'
 
 emit idle \
   "$TILE fill=\"#2C2C31\" stroke=\"#48484E\" stroke-width=\"2\"/>" \
