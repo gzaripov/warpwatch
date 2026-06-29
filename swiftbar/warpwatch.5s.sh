@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # <xbar.title>warpwatch</xbar.title>
-# <xbar.version>v0.4.0</xbar.version>
+# <xbar.version>v0.5.0</xbar.version>
 # <xbar.author>Grigory Zaripov</xbar.author>
 # <xbar.author.github>gzaripov</xbar.author.github>
 # <xbar.desc>Per-tab dashboard of Claude Code agents in Warp; click a tab to jump to it.</xbar.desc>
@@ -44,8 +44,8 @@ elif [ "$donec"   -gt 0 ]; then state="done"
 elif [ "$working" -gt 0 ]; then state="working"
 fi
 
-# --- menu bar item: Warp logo + status badge (with attention count) ---
-icon="$ICONS/$state.png"
+# --- menu bar item: Warp logo, tile colour = status (vector SVG, crisp at any size) ---
+icon="$ICONS/$state.svg"
 if [ -f "$icon" ]; then
   b64="$(base64 < "$icon" | tr -d '\n')"
   if [ "$attention" -gt 0 ]; then

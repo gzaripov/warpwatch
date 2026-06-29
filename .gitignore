@@ -7,6 +7,6 @@ state/
 # logs
 *.log
 
-# generated icon build artifacts
-icons/*.svg
-icons/_strip*
+# icons ship as vector SVG; PNGs are just build/preview artifacts
+icons/_*
+icons/*.png

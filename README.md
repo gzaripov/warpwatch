@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue) ![Platform](https://img.shields.io/badge/platform-macOS-black) ![Warp](https://img.shields.io/badge/terminal-Warp-01A8B4) ![SwiftBar](https://img.shields.io/badge/menu--bar-SwiftBar-orange)
 
-One row per Warp tab, named after its task, with a live status. The menu-bar icon is a **crisp terminal tile** — teal while agents are working (Warp's colour), and **green / amber when a tab finishes or needs your input** — click it to jump straight to the **exact** tab the agent is in.
+One row per Warp tab, named after its task, with a live status. The menu-bar icon is the **Warp logo on a status-coloured tile** (crisp vector SVG) — teal while agents are working, **green / amber when a tab finishes or needs your input** — click it to jump straight to the **exact** tab the agent is in.
 
 ![warpwatch menu bar](docs/menubar.svg)
 
