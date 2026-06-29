@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # <xbar.title>warpwatch</xbar.title>
-# <xbar.version>v0.6.3</xbar.version>
+# <xbar.version>v0.6.4</xbar.version>
 # <xbar.author>Grigory Zaripov</xbar.author>
 # <xbar.author.github>gzaripov</xbar.author.github>
 # <xbar.desc>Per-tab dashboard of Claude Code agents in Warp; click a tab to jump to it.</xbar.desc>
