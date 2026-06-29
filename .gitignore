@@ -8,5 +8,5 @@ state/
 *.log
 
 # generated icon build artifacts
-swiftbar/icons/*.svg
-swiftbar/icons/_strip*
+icons/*.svg
+icons/_strip*

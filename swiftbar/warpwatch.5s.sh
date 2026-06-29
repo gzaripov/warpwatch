@@ -21,7 +21,9 @@ export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 STATE_DIR="${WARPWATCH_STATE:-$HOME/.claude/warpwatch/state}"
 STATE="$STATE_DIR/tabs.tsv"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ICONS="$HERE/icons"
+# Assets live OUTSIDE the SwiftBar plugin folder — SwiftBar runs every file in
+# its plugin dir as a plugin, so icons must not sit next to this script.
+ICONS="$HERE/../icons"
 OPEN="$HERE/../scripts/menubar-open.sh"
 CLEAR="$HERE/../scripts/menubar-clear.sh"
 
