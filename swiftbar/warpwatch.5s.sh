@@ -61,17 +61,17 @@ fi
 
 echo "---"
 if [ "$total" -gt 0 ]; then
-  echo "Warp agents | size=11 color=#9AA0A6"
+  echo "Warp agents | size=11 color=#B8BCC2"
   awk -F'\t' '
     function rank(s){ if(s=="input")return 0; if(s=="done")return 1; if(s=="working")return 2; return 3 }
     NF>=6 { printf "%d\t%d\t%s\n", rank($2), -$3, $0 }
   ' "$STATE" | sort -t"$(printf '\t')" -k1,1n -k2,2n | cut -f3- | while IFS=$'\t' read -r uuid status epoch name cwd url; do
     [ -n "$uuid" ] || continue
     case "$status" in
-      input)   g="⌨️"; col="#FFB23E" ;;
-      done)    g="✅"; col="#4CD964" ;;
-      working) g="⏳"; col="#D6D6DB" ;;
-      *)       g="•";  col="#9C9CA2" ;;
+      input)   sym="bell.fill";             scol="#FF9F0A"; col="#FFC061" ;;
+      done)    sym="checkmark.circle.fill"; scol="#34C759"; col="#5BD97A" ;;
+      working) sym="hourglass";             scol="#9AA0A6"; col="#D6D6DB" ;;
+      *)       sym="circle";                scol="#7A7A82"; col="#A0A0A6" ;;
     esac
     d=$(( now - epoch ))
     if   [ "$d" -lt 60 ];    then rel="${d}s"
@@ -80,7 +80,7 @@ if [ "$total" -gt 0 ]; then
     else                          rel="$(( d / 86400 ))d"
     fi
     [ -n "$name" ] || name="warp"
-    echo "$g $name · $rel | color=$col shell=$OPEN param1=$uuid terminal=false refresh=true"
+    echo "$name · $rel | sfimage=$sym sfcolor=$scol color=$col shell=$OPEN param1=$uuid terminal=false refresh=true"
   done
   echo "---"
   echo "Очистить | color=#C9C9CE shell=$CLEAR terminal=false refresh=true"

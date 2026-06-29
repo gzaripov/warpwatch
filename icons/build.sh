@@ -1,41 +1,54 @@
 #!/usr/bin/env bash
 #
-# Builds the warpwatch menu-bar state icons: the Warp logo as a constant base
-# with a bold status badge overlaid (working / done / input). Re-run after
-# changing warp-logo.png. Requires rsvg-convert (brew install librsvg).
+# Builds the warpwatch menu-bar state icons as crisp flat vectors (a rounded
+# terminal tile; teal = Warp/working, green = done, amber = needs-input, slate =
+# idle). Pure vector so it stays sharp at menu-bar size. Requires rsvg-convert.
 #
-#   warp-logo.png  ──►  idle.png  working.png  done.png  input.png
+#   build.sh  ──►  idle.png  working.png  done.png  input.png   (36px)
 set -euo pipefail
 cd "$(dirname "$0")"
-
-[ -f warp-logo.png ] || { echo "warp-logo.png missing"; exit 1; }
 command -v rsvg-convert >/dev/null || { echo "need rsvg-convert (brew install librsvg)"; exit 1; }
 
-LOGO="$(base64 < warp-logo.png | tr -d '\n')"
 SIZE=36
+render() { rsvg-convert -w "$SIZE" -h "$SIZE" "$1.svg" -o "$1.png" && echo "built $1.png"; }
 
-emit() { # name  badge-svg  logo-opacity
-  local name="$1" badge="$2" op="${3:-1}"
-  cat > "$name.svg" <<SVG
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="36" height="36" viewBox="0 0 36 36">
-  <image x="1.5" y="1.5" width="33" height="33" opacity="$op" xlink:href="data:image/png;base64,$LOGO"/>
-  $badge
+TILE='<rect x="4" y="4" width="36" height="36" rx="11"'
+PROMPT='<path d="M16 16 L24 22 L16 28" fill="none" stroke="%S%" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 28 H33" stroke="%S%" stroke-width="3.6" stroke-linecap="round"/>'
+
+cat > idle.svg <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="$SIZE" height="$SIZE" viewBox="0 0 44 44">
+  $TILE fill="#2C2C31" stroke="#48484E" stroke-width="1.5"/>
+  ${PROMPT//%S%/#8A8A90}
 </svg>
 SVG
-  rsvg-convert -w "$SIZE" -h "$SIZE" "$name.svg" -o "$name.png"
-  echo "built $name.png"
-}
 
-# idle: just the Warp logo, slightly faded (nothing running)
-emit idle "" "0.6"
+cat > working.svg <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="$SIZE" height="$SIZE" viewBox="0 0 44 44">
+  <defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#1ECAD8"/><stop offset="1" stop-color="#0E97A6"/></linearGradient></defs>
+  $TILE fill="url(#t)"/>
+  ${PROMPT//%S%/#FFFFFF}
+</svg>
+SVG
 
-# working: grey badge with a typing dot-trio
-emit working '<circle cx="27" cy="27" r="9.4" fill="#ffffff"/><circle cx="27" cy="27" r="7.9" fill="#8A8A8F"/><circle cx="23.6" cy="27" r="1.45" fill="#fff"/><circle cx="27" cy="27" r="1.45" fill="#fff"/><circle cx="30.4" cy="27" r="1.45" fill="#fff"/>'
+cat > done.svg <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="$SIZE" height="$SIZE" viewBox="0 0 44 44">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#3CD162"/><stop offset="1" stop-color="#27AE49"/></linearGradient></defs>
+  $TILE fill="url(#g)"/>
+  <path d="M15.5 22.5 L20.5 27.5 L29 17.5" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+SVG
 
-# done: green badge with a check
-emit done '<circle cx="27" cy="27" r="9.4" fill="#ffffff"/><circle cx="27" cy="27" r="7.9" fill="#34C759"/><path d="M23.2 27.3 l2.7 2.7 l4.3 -5.2" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>'
+cat > input.svg <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="$SIZE" height="$SIZE" viewBox="0 0 44 44">
+  <defs><linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFB740"/><stop offset="1" stop-color="#FF9402"/></linearGradient></defs>
+  $TILE fill="url(#a)"/>
+  <path d="M22 13 C17 13 13.7 16.4 13.7 21.5 V26 L11 30 H33 L30.3 26 V21.5 C30.3 16.4 27 13 22 13 Z" fill="#fff"/>
+  <path d="M18.6 32 H25.4 C25.4 34.1 23.9 35.6 22 35.6 C20.1 35.6 18.6 34.1 18.6 32 Z" fill="#fff"/>
+</svg>
+SVG
 
-# input: amber badge with an exclamation (it wants you)
-emit input '<circle cx="27" cy="27" r="9.4" fill="#ffffff"/><circle cx="27" cy="27" r="7.9" fill="#FF9F0A"/><rect x="25.95" y="22.3" width="2.1" height="6" rx="1.05" fill="#fff"/><circle cx="27" cy="31" r="1.35" fill="#fff"/>'
-
-echo "done."
+for n in idle working done input; do render "$n"; done
+echo done.
