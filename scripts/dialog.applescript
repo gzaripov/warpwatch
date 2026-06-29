@@ -9,11 +9,11 @@ on run argv
 	-- Owned by System Events so it floats on top even when no app is frontmost.
 	tell application "System Events"
 		activate
-		set r to display dialog msg with title "Claude Code" buttons {"Закрыть", "Открыть Warp"} default button "Открыть Warp" with icon iconNum giving up after giveUp
+		set r to display dialog msg with title "Claude Code" buttons {"Close", "Open Warp"} default button "Open Warp" with icon iconNum giving up after giveUp
 	end tell
 	-- Only act on an explicit click (not on timeout). Prefer the per-tab deep
 	-- link so we land on the exact session, not just whatever tab is frontmost.
-	if (gave up of r) is false and (button returned of r) is "Открыть Warp" then
+	if (gave up of r) is false and (button returned of r) is "Open Warp" then
 		if focusUrl is not "" then
 			do shell script "open " & quoted form of focusUrl
 		else

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # <xbar.title>warpwatch</xbar.title>
-# <xbar.version>v0.6.0</xbar.version>
+# <xbar.version>v0.6.1</xbar.version>
 # <xbar.author>Grigory Zaripov</xbar.author>
 # <xbar.author.github>gzaripov</xbar.author.github>
 # <xbar.desc>Per-tab dashboard of Claude Code agents in Warp; click a tab to jump to it.</xbar.desc>
@@ -25,7 +25,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # its plugin dir as a plugin, so icons must not sit next to this script.
 ICONS="$HERE/../icons"
 OPEN="$HERE/../scripts/menubar-open.sh"
-CLEAR="$HERE/../scripts/menubar-clear.sh"
 
 now="$(date +%s)"
 waiting=0; working=0; total=0
@@ -48,10 +47,11 @@ fi
 icon="$ICONS/$state.svg"
 if [ -f "$icon" ]; then
   b64="$(base64 < "$icon" | tr -d '\n')"
+  bartip="warpwatch — $waiting waiting, $working working"
   if [ "$attention" -gt 0 ]; then
-    echo "$attention | image=$b64"
+    echo "$attention | image=$b64 tooltip=\"$bartip\""
   else
-    echo "| image=$b64"
+    echo "| image=$b64 tooltip=\"$bartip\""
   fi
 else
   # fallback to SF Symbols if the rendered icons aren't present
@@ -67,11 +67,10 @@ if [ "$total" -gt 0 ]; then
     NF>=6 { printf "%d\t%d\t%s\n", rank($2), -$3, $0 }
   ' "$STATE" | sort -t"$(printf '\t')" -k1,1n -k2,2n | cut -f3- | while IFS=$'\t' read -r uuid status epoch name cwd url; do
     [ -n "$uuid" ] || continue
-    # ⏳ = agent working, 💬 = stopped and waiting for you. Colourful emoji are
-    # self-coloured, so they stay vivid + legible on the native menu background.
+    # crisp vector status icon (SF Symbol), coloured; hover shows a tooltip.
     case "$status" in
-      working) g="⏳" ;;
-      *)       g="💬" ;;
+      working) sym="hourglass" ; scol="#0E97A6" ; tip="Agent is working" ;;
+      *)       sym="bell.fill" ; scol="#FF9500" ; tip="Agent is waiting for your input" ;;
     esac
     d=$(( now - epoch ))
     if   [ "$d" -lt 60 ];    then rel="${d}s"
@@ -80,12 +79,10 @@ if [ "$total" -gt 0 ]; then
     else                          rel="$(( d / 86400 ))d"
     fi
     [ -n "$name" ] || name="warp"
-    echo "$g $name · $rel | shell=$OPEN param1=$uuid terminal=false refresh=true"
+    echo "$name · $rel | sfimage=$sym sfcolor=$scol tooltip=\"$tip\" shell=$OPEN param1=$uuid terminal=false refresh=true"
   done
-  echo "---"
-  echo "Очистить | shell=$CLEAR terminal=false refresh=true"
 else
-  echo "Нет активных вкладок | color=#98989F"
+  echo "No active agents | color=#98989F"
 fi
 echo "---"
-echo "Открыть Warp | shell=/usr/bin/open param1=-a param2=Warp terminal=false"
+echo "Open Warp | shell=/usr/bin/open param1=-a param2=Warp terminal=false"

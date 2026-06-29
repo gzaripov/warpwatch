@@ -100,8 +100,8 @@ case "$action" in start | end) exit 0 ;; esac
 [ "$mode" = "silent" ] && exit 0
 
 case "$action" in
-  input) sound="${WARPWATCH_SOUND_INPUT:-/System/Library/Sounds/Glass.aiff}"; message="Клод ждёт ответа"; icon=2 ;;
-  *)     sound="${WARPWATCH_SOUND_DONE:-/System/Library/Sounds/Hero.aiff}";  message="Клод закончил";   icon=1 ;;
+  input) sound="${WARPWATCH_SOUND_INPUT:-/System/Library/Sounds/Glass.aiff}"; message="Agent is waiting for your input"; icon=2 ;;
+  *)     sound="${WARPWATCH_SOUND_DONE:-/System/Library/Sounds/Hero.aiff}";  message="Agent finished";                icon=1 ;;
 esac
 
 # Guard: stay quiet (no sound/popup) while you're already looking at Warp.
