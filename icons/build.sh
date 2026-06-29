@@ -39,11 +39,7 @@ emit working \
   "<defs><linearGradient id=\"t\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#27C7D6\"/><stop offset=\"1\" stop-color=\"#0E97A6\"/></linearGradient></defs>$TILE fill=\"url(#t)\"/>" \
   '#ffffff'
 
-emit done \
-  "<defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#3CD162\"/><stop offset=\"1\" stop-color=\"#27AE49\"/></linearGradient></defs>$TILE fill=\"url(#g)\"/>" \
-  '#ffffff'
-
-emit input \
+emit waiting \
   "<defs><linearGradient id=\"a\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFB740\"/><stop offset=\"1\" stop-color=\"#FF9402\"/></linearGradient></defs>$TILE fill=\"url(#a)\"/>" \
   '#ffffff'
 

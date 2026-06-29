@@ -86,13 +86,11 @@ if [ -n "$uuid" ]; then
       remove_tab
       exit 0
       ;;
-    done)
+    done | input)
+      # both mean "the agent stopped — your turn" (finished a turn or asked
+      # a question). One state: waiting.
       name="$(lookup 4)"; [ -z "$name" ] && name="$(basename "$cwd")"
-      write_tab done "$name"
-      ;;
-    input)
-      name="$(lookup 4)"; [ -z "$name" ] && name="$(basename "$cwd")"
-      write_tab input "$name"
+      write_tab waiting "$name"
       ;;
   esac
 fi

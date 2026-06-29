@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # <xbar.title>warpwatch</xbar.title>
-# <xbar.version>v0.5.4</xbar.version>
+# <xbar.version>v0.6.0</xbar.version>
 # <xbar.author>Grigory Zaripov</xbar.author>
 # <xbar.author.github>gzaripov</xbar.author.github>
 # <xbar.desc>Per-tab dashboard of Claude Code agents in Warp; click a tab to jump to it.</xbar.desc>
@@ -28,19 +28,19 @@ OPEN="$HERE/../scripts/menubar-open.sh"
 CLEAR="$HERE/../scripts/menubar-clear.sh"
 
 now="$(date +%s)"
-input=0; donec=0; working=0; total=0
+waiting=0; working=0; total=0
 if [ -f "$STATE" ]; then
-  input="$(awk   -F'\t' '$2=="input"{c++}   END{print c+0}' "$STATE")"
-  donec="$(awk   -F'\t' '$2=="done"{c++}    END{print c+0}' "$STATE")"
-  working="$(awk -F'\t' '$2=="working"{c++} END{print c+0}' "$STATE")"
+  # "waiting" = the agent stopped and it's your turn (any non-working row,
+  # so legacy done/input/seen rows are treated as waiting too).
+  waiting="$(awk -F'\t' 'NF>=6 && $2!="working"{c++} END{print c+0}' "$STATE")"
+  working="$(awk -F'\t' 'NF>=6 && $2=="working"{c++} END{print c+0}' "$STATE")"
   total="$(grep -c . "$STATE" 2>/dev/null || echo 0)"
 fi
-attention=$(( input + donec ))
+attention=$waiting
 
-# pick the menu-bar state: input > done > working > idle
+# menu-bar state: waiting (your turn) > working > idle
 state="idle"
-if   [ "$input"   -gt 0 ]; then state="input"
-elif [ "$donec"   -gt 0 ]; then state="done"
+if   [ "$waiting" -gt 0 ]; then state="waiting"
 elif [ "$working" -gt 0 ]; then state="working"
 fi
 
@@ -63,17 +63,15 @@ echo "---"
 if [ "$total" -gt 0 ]; then
   echo "Warp agents | size=11"
   awk -F'\t' '
-    function rank(s){ if(s=="input")return 0; if(s=="done")return 1; if(s=="working")return 2; return 3 }
+    function rank(s){ return (s=="working") ? 1 : 0 }
     NF>=6 { printf "%d\t%d\t%s\n", rank($2), -$3, $0 }
   ' "$STATE" | sort -t"$(printf '\t')" -k1,1n -k2,2n | cut -f3- | while IFS=$'\t' read -r uuid status epoch name cwd url; do
     [ -n "$uuid" ] || continue
-    # status shown by a colourful emoji (self-coloured, legible on any menu
-    # background); the text keeps the system label colour for contrast.
+    # ⏳ = agent working, 💬 = stopped and waiting for you. Colourful emoji are
+    # self-coloured, so they stay vivid + legible on the native menu background.
     case "$status" in
-      input)   g="💬" ;;
-      done)    g="✅" ;;
       working) g="⏳" ;;
-      *)       g="💤" ;;
+      *)       g="💬" ;;
     esac
     d=$(( now - epoch ))
     if   [ "$d" -lt 60 ];    then rel="${d}s"
