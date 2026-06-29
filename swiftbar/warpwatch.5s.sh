@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # <xbar.title>warpwatch</xbar.title>
-# <xbar.version>v0.5.2</xbar.version>
+# <xbar.version>v0.5.3</xbar.version>
 # <xbar.author>Grigory Zaripov</xbar.author>
 # <xbar.author.github>gzaripov</xbar.author.github>
 # <xbar.desc>Per-tab dashboard of Claude Code agents in Warp; click a tab to jump to it.</xbar.desc>
@@ -61,17 +61,20 @@ fi
 
 echo "---"
 if [ "$total" -gt 0 ]; then
-  echo "Warp agents | size=11 color=#B8BCC2"
+  echo "Warp agents | size=11"
   awk -F'\t' '
     function rank(s){ if(s=="input")return 0; if(s=="done")return 1; if(s=="working")return 2; return 3 }
     NF>=6 { printf "%d\t%d\t%s\n", rank($2), -$3, $0 }
   ' "$STATE" | sort -t"$(printf '\t')" -k1,1n -k2,2n | cut -f3- | while IFS=$'\t' read -r uuid status epoch name cwd url; do
     [ -n "$uuid" ] || continue
+    # status is conveyed by the coloured glyph; the text uses the system
+    # label colour (no color= override) so it stays legible on the native
+    # light/dark menu background.
     case "$status" in
-      input)   sym="bell.fill";             scol="#FF9F0A"; col="#FFC061" ;;
-      done)    sym="checkmark.circle.fill"; scol="#34C759"; col="#5BD97A" ;;
-      working) sym="hourglass";             scol="#9AA0A6"; col="#D6D6DB" ;;
-      *)       sym="circle";                scol="#7A7A82"; col="#A0A0A6" ;;
+      input)   sym="bell.fill" ;             scol="#FF9500" ;;
+      done)    sym="checkmark.circle.fill" ; scol="#34C759" ;;
+      working) sym="hourglass" ;             scol="#0E97A6" ;;
+      *)       sym="circle" ;                scol="#98989F" ;;
     esac
     d=$(( now - epoch ))
     if   [ "$d" -lt 60 ];    then rel="${d}s"
@@ -80,12 +83,12 @@ if [ "$total" -gt 0 ]; then
     else                          rel="$(( d / 86400 ))d"
     fi
     [ -n "$name" ] || name="warp"
-    echo "$name · $rel | sfimage=$sym sfcolor=$scol color=$col shell=$OPEN param1=$uuid terminal=false refresh=true"
+    echo "$name · $rel | sfimage=$sym sfcolor=$scol shell=$OPEN param1=$uuid terminal=false refresh=true"
   done
   echo "---"
-  echo "Очистить | color=#C9C9CE shell=$CLEAR terminal=false refresh=true"
+  echo "Очистить | shell=$CLEAR terminal=false refresh=true"
 else
-  echo "Нет активных вкладок | color=#9C9CA2"
+  echo "Нет активных вкладок | color=#98989F"
 fi
 echo "---"
-echo "Открыть Warp | color=#E8E8EC shell=/usr/bin/open param1=-a param2=Warp terminal=false"
+echo "Открыть Warp | shell=/usr/bin/open param1=-a param2=Warp terminal=false"
