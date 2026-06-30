@@ -25,11 +25,13 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let slate = NSColor(white: 0.62, alpha: 1)
 
     var warpMark: NSImage!
-    var dotWorking: NSImage!, dotWaiting: NSImage!
 
     var refreshTimer: Timer?
     var pulseTimer: Timer?
     var phase: Double = 0
+    var menuTimer: Timer?
+    var menuPhase: Double = 0
+    var animItems: [NSMenuItem] = []   // waiting rows to pulse while the menu is open
     let thick = NSStatusBar.system.thickness   // menu-bar height (~22–24pt)
 
     override init() {
@@ -88,13 +90,30 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return img
     }
 
+    // A dropdown row dot: a bright, high-contrast core with an optional
+    // breathing halo (so it stands out on the grey menu background).
+    func dotImage(_ color: NSColor, halo: Bool, phase: Double) -> NSImage {
+        let s: CGFloat = 16
+        let img = NSImage(size: NSSize(width: s, height: s))
+        img.lockFocus()
+        let c = s / 2
+        if halo {
+            let t = CGFloat((cos(phase) + 1) / 2)
+            color.withAlphaComponent(0.16 + 0.42 * t).setFill()
+            fillOval(c, c, s * (0.30 + 0.20 * (1 - t)))
+        }
+        color.setFill()
+        fillOval(c, c, s * 0.32)                            // bright core
+        img.unlockFocus()
+        img.isTemplate = false
+        return img
+    }
+
     // MARK: lifecycle
 
     func applicationDidFinishLaunching(_ note: Notification) {
         NSApp.setActivationPolicy(.accessory)
         warpMark = loadImage("mark.svg", size: NSSize(width: 60, height: 48))
-        dotWorking = loadImage("row-working.svg", size: NSSize(width: 16, height: 16))
-        dotWaiting = loadImage("row-waiting.svg", size: NSSize(width: 16, height: 16))
 
         let menu = NSMenu()
         menu.delegate = self
@@ -171,6 +190,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        animItems.removeAll()
         let header = NSMenuItem(title: "Warp agents", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
@@ -193,8 +213,10 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.attributedTitle = s
                 item.target = self
                 item.representedObject = t.url
-                item.image = (t.status == "working") ? dotWorking : dotWaiting
-                item.toolTip = (t.status == "working") ? "Agent is working" : "Agent is waiting for your input"
+                let waiting = t.status != "working"
+                item.image = dotImage(waiting ? amber : teal, halo: waiting, phase: menuPhase)
+                item.toolTip = waiting ? "Agent is waiting for your input" : "Agent is working"
+                if waiting { animItems.append(item) }
                 menu.addItem(item)
             }
         }
@@ -206,6 +228,26 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let quit = NSMenuItem(title: "Quit warpwatch", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
+
+    // Pulse the waiting-row dots while the menu is open. The timer runs in
+    // .common mode so it keeps firing during menu tracking.
+    func menuWillOpen(_ menu: NSMenu) {
+        guard !animItems.isEmpty else { return }
+        let t = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.menuPhase += 0.2
+            for it in self.animItems {
+                it.image = self.dotImage(self.amber, halo: true, phase: self.menuPhase)
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        menuTimer = t
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuTimer?.invalidate(); menuTimer = nil
+        animItems.removeAll()
     }
 
     // MARK: actions
