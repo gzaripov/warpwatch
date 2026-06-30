@@ -20,7 +20,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let iconsDir: String
     let pulseEnabled: Bool
 
-    let attn = NSColor(red: 1.0, green: 0.176, blue: 0.471, alpha: 1)   // magenta — high contrast on grey + blue
+    let attn = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)     // amber (waiting)
     let teal  = NSColor(red: 0.055, green: 0.592, blue: 0.651, alpha: 1)
     let slate = NSColor(white: 0.62, alpha: 1)
 
@@ -99,12 +99,13 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let c = s / 2
         let t = CGFloat((cos(phase) + 1) / 2)              // 0 → 1 → 0
         if halo {
-            let amp: CGFloat = strong ? 1.0 : 0.55         // waiting pulses harder than working
-            color.withAlphaComponent((0.22 + 0.42 * t) * amp).setFill()
-            fillOval(c, c, s * (0.40 + 0.18 * t))          // breathing ring, always wider than the core
+            let amp: CGFloat = strong ? 1.0 : 0.6          // waiting pulses harder than working
+            // a light glow (not the dot's own colour) so the dot pops on the grey menu
+            NSColor.white.withAlphaComponent((0.18 + 0.34 * t) * amp).setFill()
+            fillOval(c, c, s * (0.42 + 0.14 * t))          // breathing ring, wider than the core
         }
         color.setFill()
-        fillOval(c, c, s * (0.30 + 0.05 * t))              // bright core, slight breathe
+        fillOval(c, c, s * (0.30 + 0.05 * t))              // bright coloured core, slight breathe
         img.unlockFocus()
         img.isTemplate = false
         return img
