@@ -354,4 +354,26 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 let app = NSApplication.shared
 let delegate = WarpwatchApp()
 app.delegate = delegate
+
+// Headless self-test: exercise the menu-render path for every row + agent.
+if ProcessInfo.processInfo.environment["WARPWATCH_SELFTEST"] != nil {
+    func say(_ s: String) { FileHandle.standardError.write((s + "\n").data(using: .utf8)!) }
+    delegate.warpMark = delegate.loadImage("mark.svg", size: NSSize(width: 60, height: 48))
+    let tabs = delegate.readTabs()
+    say("selftest: \(tabs.count) tabs")
+    for a in ["claude", "codex", "weird", ""] {
+        _ = delegate.agentGlyph(a).tiffRepresentation
+        say("  agentGlyph(\(a)) ok")
+    }
+    for t in tabs {
+        let waiting = t.status != "working"
+        _ = delegate.dotImage(waiting ? delegate.attn : delegate.teal, phase: 1.3, waiting: waiting).tiffRepresentation
+        _ = delegate.rowTitle(t.name, t.epoch, t.agent).length
+        say("  row [\(t.agent)] \(t.status) \(t.name) ok")
+    }
+    _ = delegate.barComposite(working: 3, waiting: 2, phase: 1.3).tiffRepresentation
+    say("selftest: OK")
+    exit(0)
+}
+
 app.run()
