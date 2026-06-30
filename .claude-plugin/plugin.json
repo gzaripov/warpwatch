@@ -1,6 +1,6 @@
 {
   "name": "warpwatch",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "description": "A macOS menu-bar dashboard of your Claude Code and Codex agents in Warp. One row per tab, named after its task, with a live status: working, or waiting for you. The menu-bar icon is the Warp logo on a tile whose colour = status (teal = working, amber = waiting for you), rendered as crisp vector SVG — click it to jump straight to the EXACT Warp tab (via warp://session deep links). Plays a sound when an agent stops; optional notification / dialog / auto-focus modes.",
   "author": {
     "name": "Grigory Zaripov",

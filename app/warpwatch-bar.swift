@@ -25,6 +25,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let purple = NSColor(red: 0.49, green: 0.36, blue: 0.96, alpha: 1)   // purple — awaiting review
     let danger = NSColor(red: 1.0,  green: 0.27, blue: 0.23, alpha: 1)   // red    — error
     let slate  = NSColor(white: 0.62, alpha: 1)
+    let violetLo = NSColor(red: 0.81, green: 0.71, blue: 1.0,  alpha: 1)  // light violet (spinner head)
+    let violetHi = NSColor(red: 0.46, green: 0.20, blue: 0.93, alpha: 1)  // deep violet  (spinner tail)
 
     enum St { case idle, attention, working, error }
     func statusKind(_ s: String) -> St {
@@ -93,7 +95,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             attn.setFill()
             fillOval(c, c, s * 0.30)                              // solid core
         case .working:
-            drawArc(c, c, r: s * 0.40, width: s * 0.17, start: phase, sweep: .pi * 1.5, color: teal)
+            drawSpinner(c, c, r: s * 0.38, width: s * 0.15, phase: phase)
         case .error:
             danger.setFill(); fillOval(c, c, s * 0.46)                       // red disc + white "!"
             NSColor.white.setStroke()
@@ -121,6 +123,31 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         p.lineCapStyle = .round
         color.setStroke()
         p.stroke()
+    }
+
+    func blend(_ a: NSColor, _ b: NSColor, _ t: CGFloat) -> NSColor {
+        let a1 = a.usingColorSpace(.sRGB) ?? a, b1 = b.usingColorSpace(.sRGB) ?? b
+        return NSColor(red:   a1.redComponent   + (b1.redComponent   - a1.redComponent)   * t,
+                       green: a1.greenComponent + (b1.greenComponent - a1.greenComponent) * t,
+                       blue:  a1.blueComponent  + (b1.blueComponent  - a1.blueComponent)  * t, alpha: 1)
+    }
+
+    // a modern "tail" spinner: a ring that fades from a bright head to a faint
+    // tail in a violet gradient, rotating with phase.
+    func drawSpinner(_ cx: CGFloat, _ cy: CGFloat, r: CGFloat, width: CGFloat, phase: Double) {
+        let seg = 24
+        let span = Double.pi * 1.85                         // small gap = the "head"
+        for i in 0..<seg {
+            let f = CGFloat(i) / CGFloat(seg - 1)           // 0 = tail, 1 = head
+            let a0 = phase + Double(f) * span
+            let a1 = a0 + span / Double(seg) * 1.35          // slight overlap, no gaps
+            blend(violetHi, violetLo, f).withAlphaComponent(0.10 + 0.90 * f).setStroke()
+            let p = NSBezierPath()
+            p.appendArc(withCenter: NSPoint(x: cx, y: cy), radius: r,
+                        startAngle: CGFloat(a0 * 180 / .pi), endAngle: CGFloat(a1 * 180 / .pi))
+            p.lineWidth = width; p.lineCapStyle = .round
+            p.stroke()
+        }
     }
 
     // menu bar: Warp mark + a big status glyph & count per active state.
