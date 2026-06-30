@@ -139,9 +139,9 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // grabbing attention. Kept inside the bounds (max 8.5 < c = 9).
             let u = CGFloat(phase.truncatingRemainder(dividingBy: 2.6) / 2.6)   // 0 → 1 ripple
             NSColor.white.withAlphaComponent((1 - u) * 0.55).setFill()
-            fillOval(c, c, s * (0.30 + 0.17 * u))
+            fillOval(c, c, s * (0.28 + 0.17 * u))
             color.setFill()
-            fillOval(c, c, s * 0.30)                        // steady bright core
+            fillOval(c, c, s * 0.25)                        // steady bright core (a touch smaller)
         } else {
             // work in progress -> the same rotating-arc spinner as the menu bar
             drawArc(c, c, r: s * 0.30, width: s * 0.13, start: phase, sweep: .pi * 1.35, color: color)
@@ -280,7 +280,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !animItems.isEmpty else { return }
         let t = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            self.menuPhase += 0.18
+            self.menuPhase += 0.10
             for a in self.animItems {
                 a.item.image = self.dotImage(a.color, phase: self.menuPhase, waiting: a.waiting)
                 a.item.attributedTitle = self.rowTitle(a.name, a.epoch)   // live time (ticking seconds)
