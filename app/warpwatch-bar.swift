@@ -25,6 +25,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let slate = NSColor(white: 0.62, alpha: 1)
 
     var warpMark: NSImage!
+    var agentImages: [String: NSImage] = [:]   // cached per-agent SVG marks
 
     var refreshTimer: Timer?
     var pulseTimer: Timer?
@@ -197,32 +198,13 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // small per-agent mark (own simple glyphs): a spark for Claude, code-brackets for Codex
+    // official per-agent mark (SVG): Codex tile / Claude spark, loaded + cached
     func agentGlyph(_ agent: String) -> NSImage {
-        let s: CGFloat = 13
-        let img = NSImage(size: NSSize(width: s, height: s))
-        img.lockFocus()
-        let c = s / 2, lw = s * 0.13
-        if agent == "codex" {
-            NSColor(red: 0.36, green: 0.56, blue: 0.94, alpha: 1).setStroke()
-            for x0 in [(0.44, 0.22), (0.56, 0.78)] {
-                let p = NSBezierPath()
-                p.move(to: NSPoint(x: s * x0.0, y: s * 0.76))
-                p.line(to: NSPoint(x: s * x0.1, y: c))
-                p.line(to: NSPoint(x: s * x0.0, y: s * 0.24))
-                p.lineWidth = lw; p.lineCapStyle = .round; p.lineJoinStyle = .round; p.stroke()
-            }
-        } else {
-            NSColor(red: 0.80, green: 0.42, blue: 0.25, alpha: 1).setStroke()
-            for k in 0..<8 {
-                let a = Double(k) * Double.pi / 4
-                let p = NSBezierPath()
-                p.move(to: NSPoint(x: c + CGFloat(cos(a)) * s * 0.14, y: c + CGFloat(sin(a)) * s * 0.14))
-                p.line(to: NSPoint(x: c + CGFloat(cos(a)) * s * 0.44, y: c + CGFloat(sin(a)) * s * 0.44))
-                p.lineWidth = lw; p.lineCapStyle = .round; p.stroke()
-            }
-        }
-        img.unlockFocus()
-        img.isTemplate = false
+        let file = (agent == "codex") ? "agent-codex.svg" : "agent-claude.svg"
+        if let img = agentImages[file] { return img }
+        let img = loadImage(file, size: NSSize(width: 28, height: 28))
+            ?? NSImage(size: NSSize(width: 13, height: 13))
+        agentImages[file] = img
         return img
     }
 
