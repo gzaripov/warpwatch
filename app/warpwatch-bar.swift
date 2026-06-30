@@ -1,10 +1,11 @@
 // warpwatch-bar — a tiny native macOS menu-bar app for warpwatch.
 //
-// Reads ~/.claude/warpwatch/state/tabs.tsv, shows the Warp logo badge in the
-// menu bar (teal=working, amber=waiting). While a tab is waiting the icon
-// PULSES — a bright core badge with a translucent halo that breathes — to get
-// your attention. Click a row in the dropdown to jump to that exact Warp tab
-// via its warp://session deep link. No SwiftBar, no third-party host.
+// Reads ~/.claude/warpwatch/state/tabs.tsv and shows, in the menu bar, the
+// Warp logo mark followed by a status dot: grey=idle, teal=working, and an
+// amber dot that PULSES (a bright core with a breathing halo) while a tab is
+// waiting, to get your attention. The dropdown lists each tab with a haloed
+// status dot — click one to jump to that exact Warp tab via its warp://session
+// deep link. No SwiftBar, no third-party host.
 //
 // Build:  swiftc -O warpwatch-bar.swift -o warpwatch-bar
 // Env: WARPWATCH_HOME (default ~/.claude/warpwatch), WARPWATCH_STATE,
@@ -21,9 +22,9 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     let amber = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)
     let teal  = NSColor(red: 0.055, green: 0.592, blue: 0.651, alpha: 1)
-    let slate = NSColor(white: 0.55, alpha: 1)
+    let slate = NSColor(white: 0.62, alpha: 1)
 
-    var badgeIdle: NSImage!, badgeWorking: NSImage!, badgeWaiting: NSImage!
+    var warpMark: NSImage!
     var dotWorking: NSImage!, dotWaiting: NSImage!
 
     var refreshTimer: Timer?
@@ -43,42 +44,45 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: icons
 
-    func loadImage(_ file: String, size: CGFloat, fallback: NSColor) -> NSImage {
-        if let img = NSImage(contentsOfFile: "\(iconsDir)/\(file)") {
-            img.size = NSSize(width: size, height: size)
-            img.isTemplate = false
-            return img
-        }
-        return circle(fallback, size)
-    }
-
-    func circle(_ color: NSColor, _ size: CGFloat) -> NSImage {
-        let img = NSImage(size: NSSize(width: size, height: size))
-        img.lockFocus()
-        color.setFill()
-        NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: size - 2, height: size - 2)).fill()
-        img.unlockFocus()
+    func loadImage(_ file: String, size: NSSize) -> NSImage? {
+        guard let img = NSImage(contentsOfFile: "\(iconsDir)/\(file)") else { return nil }
+        img.size = size
         img.isTemplate = false
         return img
     }
 
-    // composite the menu-bar icon: a bright badge "core" with an optional
-    // translucent, breathing "halo" — the two-circle pulse.
-    func composite(_ badge: NSImage, halo: Bool, haloColor: NSColor) -> NSImage {
-        let s = thick
-        let img = NSImage(size: NSSize(width: s, height: s))
+    func dotColor(_ state: String) -> NSColor {
+        state == "waiting" ? amber : (state == "working" ? teal : slate)
+    }
+
+    func fillOval(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat) {
+        NSBezierPath(ovalIn: NSRect(x: cx - r, y: cy - r, width: 2 * r, height: 2 * r)).fill()
+    }
+
+    // Menu-bar icon: Warp mark on the left, status dot on the right. While
+    // waiting the dot is a bright core with a breathing translucent halo.
+    func barIcon(state: String, halo: Bool) -> NSImage {
+        let h = thick
+        let markH = h * 0.60
+        let markW = markH * (268.0 / 214.0)
+        let gap = h * 0.18
+        let dotZone = h * 0.95
+        let w = markW + gap + dotZone
+        let img = NSImage(size: NSSize(width: w, height: h))
         img.lockFocus()
-        if halo {
-            let t = (cos(phase) + 1) / 2                 // 1 → 0 → 1
-            let r = Double(s) * (0.40 + 0.10 * (1 - t))  // grows as it fades
-            let op = 0.10 + 0.42 * t                     // brightest when tight
-            haloColor.withAlphaComponent(CGFloat(op)).setFill()
-            let c = Double(s) / 2
-            NSBezierPath(ovalIn: NSRect(x: c - r, y: c - r, width: 2 * r, height: 2 * r)).fill()
+        if let mark = warpMark {
+            mark.draw(in: NSRect(x: 0, y: (h - markH) / 2, width: markW, height: markH))
         }
-        let bs = s * 0.82                                // big core badge
-        let off = (s - bs) / 2
-        badge.draw(in: NSRect(x: off, y: off, width: bs, height: bs))
+        let cx = markW + gap + dotZone / 2
+        let cy = h / 2
+        let col = dotColor(state)
+        if halo {
+            let t = CGFloat((cos(phase) + 1) / 2)          // 1 → 0 → 1
+            col.withAlphaComponent(0.10 + 0.46 * t).setFill()
+            fillOval(cx, cy, h * (0.30 + 0.16 * (1 - t)))   // grows as it fades
+        }
+        col.setFill()
+        fillOval(cx, cy, h * 0.22)                          // bright core
         img.unlockFocus()
         img.isTemplate = false
         return img
@@ -88,11 +92,9 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        badgeIdle = loadImage("idle.svg", size: thick, fallback: slate)
-        badgeWorking = loadImage("working.svg", size: thick, fallback: teal)
-        badgeWaiting = loadImage("waiting.svg", size: thick, fallback: amber)
-        dotWorking = loadImage("row-working.svg", size: 14, fallback: teal)
-        dotWaiting = loadImage("row-waiting.svg", size: 14, fallback: amber)
+        warpMark = loadImage("mark.svg", size: NSSize(width: 60, height: 48))
+        dotWorking = loadImage("row-working.svg", size: NSSize(width: 16, height: 16))
+        dotWaiting = loadImage("row-waiting.svg", size: NSSize(width: 16, height: 16))
 
         let menu = NSMenu()
         menu.delegate = self
@@ -132,7 +134,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "\(d / 86400)d"
     }
 
-    // MARK: menu-bar icon
+    // MARK: menu-bar refresh
 
     func refresh() {
         let tabs = readTabs()
@@ -144,11 +146,11 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if waiting > 0 {
             button.title = " \(waiting)"
             if pulseEnabled { startPulse() }
-            else { stopPulse(); button.image = composite(badgeWaiting, halo: false, haloColor: amber) }
+            else { stopPulse(); button.image = barIcon(state: "waiting", halo: false) }
         } else {
             stopPulse()
             button.title = ""
-            button.image = composite(working > 0 ? badgeWorking : badgeIdle, halo: false, haloColor: .clear)
+            button.image = barIcon(state: working > 0 ? "working" : "idle", halo: false)
         }
     }
 
@@ -157,7 +159,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
             guard let self = self, let b = self.statusItem.button else { return }
             self.phase += 0.16
-            b.image = self.composite(self.badgeWaiting, halo: true, haloColor: self.amber)
+            b.image = self.barIcon(state: "waiting", halo: true)
         }
         RunLoop.main.add(t, forMode: .common)
         pulseTimer = t
