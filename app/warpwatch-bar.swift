@@ -83,9 +83,9 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     //   awaiting -> a ping ring + dot (your turn)
     func barComposite(working: Int, waiting: Int, phase: Double) -> NSImage {
         let s = thick
-        let markH = s * 0.56, markW = markH * (268.0 / 214.0)
-        let icoD = s * 0.80
-        let font = NSFont.systemFont(ofSize: s * 0.50, weight: .semibold)
+        let markH = s * 0.48, markW = markH * (268.0 / 214.0)
+        let icoD = s * 0.64
+        let font = NSFont.systemFont(ofSize: s * 0.46, weight: .semibold)
         let countAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
         func cw(_ n: Int) -> CGFloat { ("\(n)" as NSString).size(withAttributes: countAttrs).width }
 
@@ -93,8 +93,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if working > 0 { groups.append((false, teal, working)) }
         if waiting > 0 { groups.append((true, attn, waiting)) }
 
-        let lead: CGFloat = groups.isEmpty ? 0 : s * 0.24
-        let interGap = s * 0.30, icoGap = s * 0.10
+        let lead: CGFloat = groups.isEmpty ? 0 : s * 0.12
+        let interGap = s * 0.18, icoGap = s * 0.05
         var w = markW + lead
         for (i, g) in groups.enumerated() {
             if i > 0 { w += interGap }
@@ -252,9 +252,11 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         button.title = ""                          // counts are drawn inside the composite
         button.toolTip = "warpwatch — \(working) working, \(waiting) awaiting"
         barWorking = working; barWaiting = waiting
+        // ALWAYS draw a frame here so the icon is never blank between timer ticks
+        // (a missing image makes the status item look like it "disappeared").
+        button.image = barComposite(working: working, waiting: waiting, phase: phase)
         if (working + waiting) == 0 || !pulseEnabled {
             stopPulse()
-            button.image = barComposite(working: working, waiting: waiting, phase: 0)
         } else {
             startPulse()
         }
