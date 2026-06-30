@@ -10,3 +10,7 @@ state/
 # icons ship as vector SVG; PNGs are just build/preview artifacts
 icons/_*
 icons/*.png
+
+# compiled native menu-bar app (build via app/build.sh)
+app/warpwatch-bar
+app/WarpwatchBar.app/

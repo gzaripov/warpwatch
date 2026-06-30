@@ -56,7 +56,23 @@ Merge into `~/.claude/settings.json` (keep any existing `hooks`):
 
 The folder is also a valid Claude Code plugin (`.claude-plugin/plugin.json` + `hooks/hooks.json`), so you can wire it through `/plugin` instead.
 
-### 2. Menu-bar item (SwiftBar)
+### 2. Menu-bar item
+
+Pick one front-end:
+
+**a) Native app (recommended — smooth pulse, no third-party host)**
+
+```bash
+~/.claude/warpwatch/app/install.sh
+```
+
+Compiles a tiny AppKit menu-bar app (`WarpwatchBar.app`), code-signs it with your
+Apple Development identity (falls back to ad-hoc), and installs a LaunchAgent so it
+starts at login. The amber Warp icon gently pulses while a tab is waiting. Update or
+restart with the same command; remove with
+`launchctl bootout gui/$(id -u)/com.gzaripov.warpwatch && rm ~/Library/LaunchAgents/com.gzaripov.warpwatch.plist`.
+
+**b) SwiftBar plugin**
 
 ```bash
 brew install --cask swiftbar
