@@ -49,6 +49,19 @@ prompt="$(jget '.prompt')"
 transcript="$(jget '.transcript_path')"
 agent="$(printf '%s' "${2:-claude}" | tr 'A-Z' 'a-z' | tr -cd 'a-z')"; [ -z "$agent" ] && agent="claude"
 
+# Codex has no SessionEnd, so its tabs would linger. Record the long-lived codex
+# process pid (walk up from the hook's parent) so the app can drop the row once
+# that process is gone. Claude has SessionEnd, so it doesn't need this.
+session_pid=""
+if [ "$agent" = "codex" ]; then
+  p="$PPID"; hops=0
+  while [ "${p:-0}" -gt 1 ] && [ "$hops" -lt 16 ]; do
+    case "$(ps -o comm= -p "$p" 2>/dev/null)" in *codex*) session_pid="$p"; break;; esac
+    p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"
+    hops=$((hops + 1))
+  done
+fi
+
 sanitize() { printf '%s' "$1" | tr '\t\n\r' '   ' | tr -s ' ' | sed 's/^ *//;s/ *$//'; }
 now="$(date +%s)"
 
@@ -80,7 +93,7 @@ write_tab() { # status name
   else
     : > "$tmp"
   fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$status" "$now" "$name" "$cwd" "$focus_url" "$agent" >> "$tmp"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$status" "$now" "$name" "$cwd" "$focus_url" "$agent" "$session_pid" >> "$tmp"
   tail -n 40 "$tmp" > "$state" 2>/dev/null && rm -f "$tmp" || mv "$tmp" "$state" 2>/dev/null || true
 }
 

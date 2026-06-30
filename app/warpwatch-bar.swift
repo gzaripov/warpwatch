@@ -84,9 +84,9 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     //   awaiting -> a ping ring + dot (your turn)
     func barComposite(working: Int, waiting: Int, phase: Double) -> NSImage {
         let s = thick
-        let markH = s * 0.48, markW = markH * (268.0 / 214.0)
-        let icoD = s * 0.64
-        let font = NSFont.systemFont(ofSize: s * 0.46, weight: .semibold)
+        let markH = s * 0.50, markW = markH * (268.0 / 214.0)
+        let icoD = s * 0.78
+        let font = NSFont.systemFont(ofSize: s * 0.52, weight: .semibold)
         let countAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
         func cw(_ n: Int) -> CGFloat { ("\(n)" as NSString).size(withAttributes: countAttrs).width }
 
@@ -172,12 +172,19 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     struct Tab { let uuid, status, name, url, agent: String; let epoch: Int }
 
+    func pidAlive(_ pid: Int) -> Bool {
+        if kill(pid_t(pid), 0) == 0 { return true }
+        return errno == EPERM   // exists but not ours (won't happen here) = still alive
+    }
+
     func readTabs() -> [Tab] {
         guard let raw = try? String(contentsOfFile: stateFile, encoding: .utf8) else { return [] }
         var tabs: [Tab] = []
         for line in raw.split(separator: "\n") {
             let f = String(line).components(separatedBy: "\t")
             if f.count < 6 { continue }
+            // col 8 = the agent's session pid (codex only); drop the row if gone.
+            if f.count > 7, let pid = Int(f[7]), pid > 0, !pidAlive(pid) { continue }
             tabs.append(Tab(uuid: f[0], status: f[1], name: f[3], url: f[5],
                             agent: f.count > 6 ? f[6] : "claude", epoch: Int(f[2]) ?? 0))
         }
