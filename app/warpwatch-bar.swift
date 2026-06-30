@@ -29,9 +29,10 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var refreshTimer: Timer?
     var pulseTimer: Timer?
     var phase: Double = 0
+    var barState = "idle"
     var menuTimer: Timer?
     var menuPhase: Double = 0
-    var animItems: [(item: NSMenuItem, color: NSColor, strong: Bool)] = []   // rows to pulse while the menu is open
+    var animItems: [(item: NSMenuItem, color: NSColor, waiting: Bool, name: String, epoch: Int)] = []   // rows animated while the menu is open
     let thick = NSStatusBar.system.thickness   // menu-bar height (~22–24pt)
 
     override init() {
@@ -63,7 +64,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // Menu-bar icon: Warp mark on the left, status dot on the right. While
     // waiting the dot is a bright core with a breathing translucent halo.
-    func barIcon(state: String, halo: Bool) -> NSImage {
+    func barIcon(state: String, phase: Double) -> NSImage {
         let s = thick                              // compact, square footprint (like claude-status-bar)
         let img = NSImage(size: NSSize(width: s, height: s))
         img.lockFocus()
@@ -73,14 +74,20 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let mark = warpMark {
             mark.draw(in: NSRect(x: (s - mw) / 2, y: (s - mh) / 2, width: mw, height: mh))
         }
-        // small status dot, bottom-right corner badge; pulses (size) while waiting
+        // small status dot, bottom-right corner badge.
+        //   working -> a calm size pulse;  waiting (answer needed) -> a blink.
         let col = dotColor(state)
         let dx = s * 0.70, dy = s * 0.30
         var r = s * 0.16
-        if halo { r *= 0.85 + 0.30 * CGFloat((cos(phase) + 1) / 2) }
-        NSColor(white: 0.0, alpha: 0.5).setFill()  // thin dark ring so the dot reads on the mark
+        var a: CGFloat = 1.0
+        if state == "waiting" {
+            a = 0.30 + 0.70 * CGFloat((cos(phase * 1.7) + 1) / 2)   // blink (alpha), no expansion → no clip
+        } else if state == "working" {
+            r *= 0.85 + 0.22 * CGFloat((cos(phase) + 1) / 2)        // gentle size pulse
+        }
+        NSColor(white: 0.0, alpha: 0.5 * a).setFill()              // thin dark ring so the dot reads on the mark
         fillOval(dx, dy, r + 1.2)
-        col.setFill()
+        col.withAlphaComponent(a).setFill()
         fillOval(dx, dy, r)
         img.unlockFocus()
         img.isTemplate = false
@@ -89,21 +96,27 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // A dropdown row dot: a bright, high-contrast core with an optional
     // breathing halo (so it stands out on the grey menu background).
-    func dotImage(_ color: NSColor, halo: Bool, phase: Double, strong: Bool) -> NSImage {
-        let s: CGFloat = 18                                // a little headroom so the halo never clips the bounds
+    func dotImage(_ color: NSColor, phase: Double, waiting: Bool) -> NSImage {
+        let s: CGFloat = 18                                // headroom so the ring never clips the bounds
         let img = NSImage(size: NSSize(width: s, height: s))
         img.lockFocus()
         let c = s / 2
-        let t = CGFloat((cos(phase) + 1) / 2)              // 0 → 1 → 0
-        if halo {
-            let amp: CGFloat = strong ? 1.0 : 0.6          // waiting pulses harder than working
-            // a light glow (not the dot's own colour) so the dot pops on the grey menu.
-            // max radius 0.40*s = 7.2 < c = 9 → always fits, never hits the icon edge.
-            NSColor.white.withAlphaComponent((0.18 + 0.34 * t) * amp).setFill()
-            fillOval(c, c, s * (0.30 + 0.10 * t))          // breathing ring, wider than the core
+        if waiting {
+            // answer needed -> a "ping": a ring emanates from the dot and fades,
+            // grabbing attention. Kept inside the bounds (max 8.5 < c = 9).
+            let u = CGFloat(phase.truncatingRemainder(dividingBy: 2.6) / 2.6)   // 0 → 1 ripple
+            NSColor.white.withAlphaComponent((1 - u) * 0.55).setFill()
+            fillOval(c, c, s * (0.30 + 0.17 * u))
+            color.setFill()
+            fillOval(c, c, s * 0.30)                        // steady bright core
+        } else {
+            // work in progress -> a calm breathing glow
+            let t = CGFloat((cos(phase) + 1) / 2)
+            NSColor.white.withAlphaComponent(0.12 + 0.24 * t).setFill()
+            fillOval(c, c, s * (0.32 + 0.07 * t))
+            color.setFill()
+            fillOval(c, c, s * (0.27 + 0.02 * t))
         }
-        color.setFill()
-        fillOval(c, c, s * (0.27 + 0.02 * t))              // bright coloured core, slight breathe
         img.unlockFocus()
         img.isTemplate = false
         return img
@@ -148,9 +161,19 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func relTime(_ epoch: Int) -> String {
         let d = max(0, Int(Date().timeIntervalSince1970) - epoch)
         if d < 60 { return "\(d)s" }
-        if d < 3600 { return "\(d / 60)m" }
-        if d < 86400 { return "\(d / 3600)h" }
+        if d < 3600 { return "\(d / 60)m \(d % 60)s" }
+        if d < 86400 { return "\(d / 3600)h \((d % 3600) / 60)m" }
         return "\(d / 86400)d"
+    }
+
+    func rowTitle(_ name: String, _ epoch: Int) -> NSAttributedString {
+        let font = NSFont.menuFont(ofSize: 0)
+        let s = NSMutableAttributedString(
+            string: name, attributes: [.foregroundColor: NSColor.labelColor, .font: font])
+        s.append(NSAttributedString(
+            string: "   ·  \(relTime(epoch))",
+            attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: font]))
+        return s
     }
 
     // MARK: menu-bar refresh
@@ -162,14 +185,13 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         button.imagePosition = .imageLeft
         button.toolTip = "warpwatch — \(waiting) waiting, \(working) working"
-        if waiting > 0 {
-            button.title = " \(waiting)"
-            if pulseEnabled { startPulse() }
-            else { stopPulse(); button.image = barIcon(state: "waiting", halo: false) }
-        } else {
+        button.title = waiting > 0 ? " \(waiting)" : ""
+        barState = waiting > 0 ? "waiting" : (working > 0 ? "working" : "idle")
+        if barState == "idle" || !pulseEnabled {
             stopPulse()
-            button.title = ""
-            button.image = barIcon(state: working > 0 ? "working" : "idle", halo: false)
+            button.image = barIcon(state: barState, phase: 0)
+        } else {
+            startPulse()   // animates barState (working = pulse, waiting = blink)
         }
     }
 
@@ -178,7 +200,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
             guard let self = self, let b = self.statusItem.button else { return }
             self.phase += 0.16
-            b.image = self.barIcon(state: "waiting", halo: true)
+            b.image = self.barIcon(state: self.barState, phase: self.phase)
         }
         RunLoop.main.add(t, forMode: .common)
         pulseTimer = t
@@ -201,22 +223,15 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
-            let font = NSFont.menuFont(ofSize: 0)
             for t in tabs {
-                let s = NSMutableAttributedString(
-                    string: t.name,
-                    attributes: [.foregroundColor: NSColor.labelColor, .font: font])
-                s.append(NSAttributedString(
-                    string: "   ·  \(relTime(t.epoch))",
-                    attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: font]))
                 let item = NSMenuItem(title: t.name, action: #selector(openTab(_:)), keyEquivalent: "")
-                item.attributedTitle = s
+                item.attributedTitle = rowTitle(t.name, t.epoch)
                 item.target = self
                 item.representedObject = t.url
                 let waiting = t.status != "working"
                 let color = waiting ? attn : teal
-                item.image = dotImage(color, halo: true, phase: menuPhase, strong: waiting)
-                animItems.append((item, color, waiting))
+                item.image = dotImage(color, phase: menuPhase, waiting: waiting)
+                animItems.append((item, color, waiting, t.name, t.epoch))
                 menu.addItem(item)
             }
         }
@@ -238,7 +253,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self = self else { return }
             self.menuPhase += 0.18
             for a in self.animItems {
-                a.item.image = self.dotImage(a.color, halo: true, phase: self.menuPhase, strong: a.strong)
+                a.item.image = self.dotImage(a.color, phase: self.menuPhase, waiting: a.waiting)
+                a.item.attributedTitle = self.rowTitle(a.name, a.epoch)   // live time (ticking seconds)
             }
         }
         RunLoop.main.add(t, forMode: .common)
