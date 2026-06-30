@@ -29,7 +29,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var refreshTimer: Timer?
     var pulseTimer: Timer?
     var phase: Double = 0
-    var barState = "idle"
+    var barWorking = 0
+    var barWaiting = 0
     var menuTimer: Timer?
     var menuPhase: Double = 0
     var animItems: [(item: NSMenuItem, color: NSColor, waiting: Bool, name: String, epoch: Int)] = []   // rows animated while the menu is open
@@ -64,31 +65,63 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // Menu-bar icon: Warp mark on the left, status dot on the right. While
     // waiting the dot is a bright core with a breathing translucent halo.
-    func barIcon(state: String, phase: Double) -> NSImage {
-        let s = thick                              // compact, square footprint (like claude-status-bar)
-        let img = NSImage(size: NSSize(width: s, height: s))
+    // a stroked arc — used for the "working" spinner
+    func drawArc(_ cx: CGFloat, _ cy: CGFloat, r: CGFloat, width: CGFloat, start: Double, sweep: Double, color: NSColor) {
+        let p = NSBezierPath()
+        p.appendArc(withCenter: NSPoint(x: cx, y: cy), radius: r,
+                    startAngle: CGFloat(start * 180 / .pi),
+                    endAngle: CGFloat((start + sweep) * 180 / .pi))
+        p.lineWidth = width
+        p.lineCapStyle = .round
+        color.setStroke()
+        p.stroke()
+    }
+
+    // menu-bar composite: Warp mark + a "working" group and an "awaiting" group
+    // (working first), each an animated icon + count. Empty groups are omitted.
+    //   working  -> a rotating arc (in progress)
+    //   awaiting -> a ping ring + dot (your turn)
+    func barComposite(working: Int, waiting: Int, phase: Double) -> NSImage {
+        let s = thick
+        let markH = s * 0.56, markW = markH * (268.0 / 214.0)
+        let icoD = s * 0.54
+        let font = NSFont.systemFont(ofSize: s * 0.44, weight: .semibold)
+        let countAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
+        func cw(_ n: Int) -> CGFloat { ("\(n)" as NSString).size(withAttributes: countAttrs).width }
+
+        var groups: [(waiting: Bool, color: NSColor, count: Int)] = []
+        if working > 0 { groups.append((false, teal, working)) }
+        if waiting > 0 { groups.append((true, attn, waiting)) }
+
+        let lead: CGFloat = groups.isEmpty ? 0 : s * 0.24
+        let interGap = s * 0.30, icoGap = s * 0.10
+        var w = markW + lead
+        for (i, g) in groups.enumerated() {
+            if i > 0 { w += interGap }
+            w += icoD + icoGap + cw(g.count)
+        }
+
+        let img = NSImage(size: NSSize(width: w, height: s))
         img.lockFocus()
-        // Warp mark, centred
-        let mh = s * 0.58
-        let mw = mh * (268.0 / 214.0)
-        if let mark = warpMark {
-            mark.draw(in: NSRect(x: (s - mw) / 2, y: (s - mh) / 2, width: mw, height: mh))
+        warpMark?.draw(in: NSRect(x: 0, y: (s - markH) / 2, width: markW, height: markH))
+        var x = markW + lead
+        for (i, g) in groups.enumerated() {
+            if i > 0 { x += interGap }
+            let cx = x + icoD / 2, cy = s / 2
+            if g.waiting {
+                let u = CGFloat(phase.truncatingRemainder(dividingBy: 2.6) / 2.6)
+                g.color.withAlphaComponent((1 - u) * 0.5).setFill()
+                fillOval(cx, cy, icoD * (0.26 + 0.22 * u))
+                g.color.setFill(); fillOval(cx, cy, icoD * 0.24)
+            } else {
+                drawArc(cx, cy, r: icoD * 0.34, width: icoD * 0.16, start: phase, sweep: .pi * 1.35, color: g.color)
+            }
+            x += icoD + icoGap
+            let str = "\(g.count)" as NSString
+            let sz = str.size(withAttributes: countAttrs)
+            str.draw(at: NSPoint(x: x, y: (s - sz.height) / 2), withAttributes: countAttrs)
+            x += sz.width
         }
-        // small status dot, bottom-right corner badge.
-        //   working -> a calm size pulse;  waiting (answer needed) -> a blink.
-        let col = dotColor(state)
-        let dx = s * 0.70, dy = s * 0.30
-        var r = s * 0.16
-        var a: CGFloat = 1.0
-        if state == "waiting" {
-            a = 0.30 + 0.70 * CGFloat((cos(phase * 1.7) + 1) / 2)   // blink (alpha), no expansion → no clip
-        } else if state == "working" {
-            r *= 0.85 + 0.22 * CGFloat((cos(phase) + 1) / 2)        // gentle size pulse
-        }
-        NSColor(white: 0.0, alpha: 0.5 * a).setFill()              // thin dark ring so the dot reads on the mark
-        fillOval(dx, dy, r + 1.2)
-        col.withAlphaComponent(a).setFill()
-        fillOval(dx, dy, r)
         img.unlockFocus()
         img.isTemplate = false
         return img
@@ -184,14 +217,14 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let working = tabs.count - waiting
         guard let button = statusItem.button else { return }
         button.imagePosition = .imageLeft
-        button.toolTip = "warpwatch — \(waiting) waiting, \(working) working"
-        button.title = waiting > 0 ? " \(waiting)" : ""
-        barState = waiting > 0 ? "waiting" : (working > 0 ? "working" : "idle")
-        if barState == "idle" || !pulseEnabled {
+        button.title = ""                          // counts are drawn inside the composite
+        button.toolTip = "warpwatch — \(working) working, \(waiting) awaiting"
+        barWorking = working; barWaiting = waiting
+        if (working + waiting) == 0 || !pulseEnabled {
             stopPulse()
-            button.image = barIcon(state: barState, phase: 0)
+            button.image = barComposite(working: working, waiting: waiting, phase: 0)
         } else {
-            startPulse()   // animates barState (working = pulse, waiting = blink)
+            startPulse()
         }
     }
 
@@ -199,8 +232,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if pulseTimer != nil { return }
         let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
             guard let self = self, let b = self.statusItem.button else { return }
-            self.phase += 0.16
-            b.image = self.barIcon(state: self.barState, phase: self.phase)
+            self.phase += 0.14
+            b.image = self.barComposite(working: self.barWorking, waiting: self.barWaiting, phase: self.phase)
         }
         RunLoop.main.add(t, forMode: .common)
         pulseTimer = t
