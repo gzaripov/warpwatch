@@ -1,6 +1,6 @@
 # warpwatch
 
-**A macOS menu-bar dashboard of your [Claude Code](https://docs.claude.com/en/docs/claude-code) agents running in [Warp](https://www.warp.dev/).**
+**A macOS menu-bar dashboard of your [Claude Code](https://docs.claude.com/en/docs/claude-code) and [Codex](https://developers.openai.com/codex) agents running in [Warp](https://www.warp.dev/).**
 
 ![License](https://img.shields.io/badge/license-MIT-blue) ![Platform](https://img.shields.io/badge/platform-macOS-black) ![Warp](https://img.shields.io/badge/terminal-Warp-01A8B4) ![SwiftBar](https://img.shields.io/badge/menu--bar-SwiftBar-orange)
 
@@ -55,6 +55,14 @@ Merge into `~/.claude/settings.json` (keep any existing `hooks`):
 | `SessionEnd` | `end` | removed from the dashboard |
 
 The folder is also a valid Claude Code plugin (`.claude-plugin/plugin.json` + `hooks/hooks.json`), so you can wire it through `/plugin` instead.
+
+**Codex CLI (cross-agent).** Codex agents show up in the same dashboard — register its hooks:
+
+```bash
+~/.claude/warpwatch/scripts/install-codex-hooks.sh
+```
+
+It merges into `~/.codex/hooks.json` (keeping any existing hooks) and maps Codex's `UserPromptSubmit` → working, `Stop` → waiting, `PermissionRequest` → answer-needed. Per-tab jump works the same (Warp sets `WARP_FOCUS_URL` in Codex tabs too). Caveats: Codex has no `SessionEnd`, so closed Codex tabs expire via the 7-day prune; and with no chat title, Codex tabs are named by their folder.
 
 ### 2. Menu-bar item
 
