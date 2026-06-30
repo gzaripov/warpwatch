@@ -86,10 +86,12 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let mh = s * 0.82, mw = mh * (268.0 / 214.0)
             warpMark?.draw(in: NSRect(x: (s - mw) / 2, y: (s - mh) / 2, width: mw, height: mh))
         case .attention:
-            // amber dot that blinks (fades in/out) — your turn
-            let t = CGFloat((cos(phase * 1.5) + 1) / 2)
-            attn.withAlphaComponent(0.42 + 0.58 * t).setFill()
-            fillOval(c, c, s * 0.42)
+            // amber dot with a breathing halo glow — your turn
+            let t = CGFloat((cos(phase) + 1) / 2)                 // 0 → 1
+            attn.withAlphaComponent(0.14 + 0.30 * t).setFill()
+            fillOval(c, c, s * (0.32 + 0.16 * t))                 // halo breathes 0.32 → 0.48
+            attn.setFill()
+            fillOval(c, c, s * 0.30)                              // solid core
         case .working:
             drawArc(c, c, r: s * 0.40, width: s * 0.17, start: phase, sweep: .pi * 1.5, color: teal)
         case .error:
@@ -126,7 +128,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func barComposite(phase: Double) -> NSImage {
         let s = thick
         let markH = s * 0.60, markW = markH * (268.0 / 214.0)
-        let icoD = s * 0.88                                        // big status glyphs
+        let icoD = s * 0.76                                        // big status glyphs (a touch smaller)
         let font = NSFont.systemFont(ofSize: s * 0.54, weight: .semibold)
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
         func cw(_ n: Int) -> CGFloat { ("\(n)" as NSString).size(withAttributes: attrs).width }
