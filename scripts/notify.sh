@@ -46,12 +46,29 @@ payload=""
 jget() { [ -n "$payload" ] && printf '%s' "$payload" | jq -r "$1 // empty" 2>/dev/null; }
 cwd="$(jget '.cwd')"; [ -z "$cwd" ] && cwd="$PWD"
 prompt="$(jget '.prompt')"
+transcript="$(jget '.transcript_path')"
 
 sanitize() { printf '%s' "$1" | tr '\t\n\r' '   ' | tr -s ' ' | sed 's/^ *//;s/ *$//'; }
 now="$(date +%s)"
 
+# Claude's AI-generated chat name (latest "ai-title" in the transcript) — the
+# meaningful session title; preferred over the raw prompt for the tab label.
+chat_name=""
+if [ -n "$transcript" ] && [ -f "$transcript" ]; then
+  chat_name="$(sanitize "$(grep '"type":"ai-title"' "$transcript" 2>/dev/null | tail -1 | jq -r '.aiTitle // empty' 2>/dev/null)" | cut -c1-48)"
+fi
+
 lookup() { # column-index -> value for the current uuid
   [ -f "$state" ] && awk -F'\t' -v u="$uuid" -v c="$1" '$1==u{print $c; exit}' "$state"
+}
+
+# tab label: chat title -> prompt -> previous name -> cwd basename
+derive_name() {
+  local n="$chat_name"
+  [ -z "$n" ] && n="$(sanitize "$prompt" | cut -c1-48)"
+  [ -z "$n" ] && n="$(lookup 4)"
+  [ -z "$n" ] && n="$(basename "$cwd")"
+  printf '%s' "$n"
 }
 
 write_tab() { # status name
@@ -76,10 +93,7 @@ remove_tab() {
 if [ -n "$uuid" ]; then
   case "$action" in
     start)
-      name="$(sanitize "$prompt" | cut -c1-48)"
-      [ -z "$name" ] && name="$(lookup 4)"
-      [ -z "$name" ] && name="$(basename "$cwd")"
-      write_tab working "$name"
+      write_tab working "$(derive_name)"
       exit 0
       ;;
     end)
@@ -89,8 +103,7 @@ if [ -n "$uuid" ]; then
     done | input)
       # both mean "the agent stopped — your turn" (finished a turn or asked
       # a question). One state: waiting.
-      name="$(lookup 4)"; [ -z "$name" ] && name="$(basename "$cwd")"
-      write_tab waiting "$name"
+      write_tab waiting "$(derive_name)"
       ;;
   esac
 fi
