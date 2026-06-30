@@ -114,10 +114,13 @@ if [ -n "$uuid" ]; then
       remove_tab
       exit 0
       ;;
-    done | input)
-      # both mean "the agent stopped — your turn" (finished a turn or asked
-      # a question). One state: waiting.
-      write_tab waiting "$(derive_name)"
+    done)
+      # finished a turn -> awaiting review (purple)
+      write_tab review "$(derive_name)"
+      ;;
+    input)
+      # asked a question / needs permission -> needs your input (amber)
+      write_tab input "$(derive_name)"
       ;;
   esac
 fi

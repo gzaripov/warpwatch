@@ -20,9 +20,21 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let iconsDir: String
     let pulseEnabled: Bool
 
-    let attn = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)     // amber (waiting)
-    let teal  = NSColor(red: 0.055, green: 0.592, blue: 0.651, alpha: 1)
-    let slate = NSColor(white: 0.62, alpha: 1)
+    let attn   = NSColor(red: 1.0,  green: 0.62, blue: 0.04, alpha: 1)   // amber  — needs your input
+    let teal   = NSColor(red: 0.06, green: 0.69, blue: 0.71, alpha: 1)   // teal   — working
+    let purple = NSColor(red: 0.49, green: 0.36, blue: 0.96, alpha: 1)   // purple — awaiting review
+    let danger = NSColor(red: 1.0,  green: 0.27, blue: 0.23, alpha: 1)   // red    — error
+    let slate  = NSColor(white: 0.62, alpha: 1)
+
+    enum St { case idle, input, working, review, error }
+    func statusKind(_ s: String) -> St {
+        switch s {
+        case "working": return .working
+        case "input":   return .input
+        case "error":   return .error
+        default:        return .review   // review / waiting / done / seen
+        }
+    }
 
     var warpMark: NSImage!
     var agentImages: [String: NSImage] = [:]   // cached per-agent SVG marks
@@ -30,11 +42,13 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var refreshTimer: Timer?
     var pulseTimer: Timer?
     var phase: Double = 0
+    var barInput = 0
     var barWorking = 0
-    var barWaiting = 0
+    var barReview = 0
+    var barError = 0
     var menuTimer: Timer?
     var menuPhase: Double = 0
-    var animItems: [(item: NSMenuItem, color: NSColor, waiting: Bool, name: String, epoch: Int, agent: String)] = []   // rows animated while the menu is open
+    var animItems: [(item: NSMenuItem, kind: St, name: String, epoch: Int, agent: String)] = []   // rows animated while the menu is open
     let thick = NSStatusBar.system.thickness   // menu-bar height (~22–24pt)
 
     override init() {
@@ -56,8 +70,45 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return img
     }
 
-    func dotColor(_ state: String) -> NSColor {
-        state == "waiting" ? attn : (state == "working" ? teal : slate)
+    func stColor(_ k: St) -> NSColor {
+        switch k {
+        case .input:   return attn
+        case .working: return teal
+        case .review:  return purple
+        case .error:   return danger
+        case .idle:    return slate
+        }
+    }
+
+    // one status glyph, shared by the bar pills and the dropdown rows
+    func statusIcon(_ kind: St, phase: Double, box s: CGFloat) -> NSImage {
+        let img = NSImage(size: NSSize(width: s, height: s)); img.lockFocus()
+        let c = s / 2
+        switch kind {
+        case .idle:
+            let mh = s * 0.64, mw = mh * (268.0 / 214.0)
+            warpMark?.draw(in: NSRect(x: (s - mw) / 2, y: (s - mh) / 2, width: mw, height: mh))
+        case .input:
+            attn.setFill(); fillOval(c, c, s * 0.34)                         // amber dot
+        case .working:
+            drawArc(c, c, r: s * 0.36, width: s * 0.15, start: phase, sweep: .pi * 1.5, color: teal)
+        case .review:
+            purple.setFill(); fillOval(c, c, s * 0.46)                       // purple disc + white check
+            NSColor.white.setStroke()
+            let p = NSBezierPath()
+            p.move(to: NSPoint(x: s * 0.30, y: s * 0.50))
+            p.line(to: NSPoint(x: s * 0.44, y: s * 0.36))
+            p.line(to: NSPoint(x: s * 0.70, y: s * 0.64))
+            p.lineWidth = s * 0.11; p.lineCapStyle = .round; p.lineJoinStyle = .round; p.stroke()
+        case .error:
+            danger.setFill(); fillOval(c, c, s * 0.46)                       // red disc + white "!"
+            NSColor.white.setStroke()
+            let v = NSBezierPath()
+            v.move(to: NSPoint(x: c, y: s * 0.68)); v.line(to: NSPoint(x: c, y: s * 0.42))
+            v.lineWidth = s * 0.12; v.lineCapStyle = .round; v.stroke()
+            NSColor.white.setFill(); fillOval(c, s * 0.32, s * 0.065)
+        }
+        img.unlockFocus(); img.isTemplate = false; return img
     }
 
     func fillOval(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat) {
@@ -78,74 +129,44 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         p.stroke()
     }
 
-    // menu-bar composite: Warp mark + a "working" group and an "awaiting" group
-    // (working first), each an animated icon + count. Empty groups are omitted.
-    //   working  -> a rotating arc (in progress)
-    //   awaiting -> a ping ring + dot (your turn)
-    func barComposite(working: Int, waiting: Int, phase: Double) -> NSImage {
-        let s = thick
-        let markH = s * 0.50, markW = markH * (268.0 / 214.0)
-        let icoD = s * 0.78
-        let font = NSFont.systemFont(ofSize: s * 0.52, weight: .semibold)
-        let countAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
-        func cw(_ n: Int) -> CGFloat { ("\(n)" as NSString).size(withAttributes: countAttrs).width }
-
-        var groups: [(waiting: Bool, color: NSColor, count: Int)] = []
-        if working > 0 { groups.append((false, teal, working)) }
-        if waiting > 0 { groups.append((true, attn, waiting)) }
-
-        let lead: CGFloat = groups.isEmpty ? 0 : s * 0.12
-        let interGap = s * 0.18, icoGap = s * 0.05
-        var w = markW + lead
-        for (i, g) in groups.enumerated() {
-            if i > 0 { w += interGap }
-            w += icoD + icoGap + cw(g.count)
-        }
-
-        let img = NSImage(size: NSSize(width: w, height: s))
-        img.lockFocus()
-        warpMark?.draw(in: NSRect(x: 0, y: (s - markH) / 2, width: markW, height: markH))
-        var x = markW + lead
-        for (i, g) in groups.enumerated() {
-            if i > 0 { x += interGap }
-            let cx = x + icoD / 2, cy = s / 2
-            if g.waiting {
-                let u = CGFloat(phase.truncatingRemainder(dividingBy: 2.6) / 2.6)
-                g.color.withAlphaComponent((1 - u) * 0.5).setFill()
-                fillOval(cx, cy, icoD * (0.30 + 0.18 * u))
-                g.color.setFill(); fillOval(cx, cy, icoD * 0.28)
-            } else {
-                drawArc(cx, cy, r: icoD * 0.42, width: icoD * 0.20, start: phase, sweep: .pi * 1.45, color: g.color)
-            }
-            x += icoD + icoGap
-            let str = "\(g.count)" as NSString
-            let sz = str.size(withAttributes: countAttrs)
-            str.draw(at: NSPoint(x: x, y: (s - sz.height) / 2), withAttributes: countAttrs)
-            x += sz.width
-        }
-        img.unlockFocus()
-        img.isTemplate = false
-        return img
+    // menu-bar: one rounded near-black pill per active state — [icon][count].
+    // Order = urgency (error, input, review, working). Idle -> [Warp mark][0].
+    func pillWidth(_ count: Int, h: CGFloat, font: NSFont) -> CGFloat {
+        let icoS = h * 0.66, pad = h * 0.30, gap = h * 0.16
+        let cw = ("\(count)" as NSString).size(withAttributes: [.font: font]).width
+        return pad + icoS + gap + cw + pad
     }
 
-    // A dropdown row dot: a bright, high-contrast core with an optional
-    // breathing halo (so it stands out on the grey menu background).
-    func dotImage(_ color: NSColor, phase: Double, waiting: Bool) -> NSImage {
-        let s: CGFloat = 18                                // headroom so the ring never clips the bounds
-        let img = NSImage(size: NSSize(width: s, height: s))
+    func barComposite(phase: Double) -> NSImage {
+        let h = thick * 0.74
+        let y0 = (thick - h) / 2
+        let pillGap = thick * 0.12
+        let font = NSFont.systemFont(ofSize: h * 0.50, weight: .semibold)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
+
+        var pills: [(St, Int)] = []
+        if barError   > 0 { pills.append((.error,   barError)) }
+        if barInput   > 0 { pills.append((.input,   barInput)) }
+        if barReview  > 0 { pills.append((.review,  barReview)) }
+        if barWorking > 0 { pills.append((.working, barWorking)) }
+        if pills.isEmpty { pills = [(.idle, 0)] }
+
+        let widths = pills.map { pillWidth($0.1, h: h, font: font) }
+        let total = widths.reduce(0, +) + pillGap * CGFloat(pills.count - 1)
+
+        let img = NSImage(size: NSSize(width: total, height: thick))
         img.lockFocus()
-        let c = s / 2
-        if waiting {
-            // answer needed -> a "ping": a ring emanates from the dot and fades,
-            // grabbing attention. Kept inside the bounds (max 8.5 < c = 9).
-            let u = CGFloat(phase.truncatingRemainder(dividingBy: 2.6) / 2.6)   // 0 → 1 ripple
-            NSColor.white.withAlphaComponent((1 - u) * 0.55).setFill()
-            fillOval(c, c, s * (0.28 + 0.17 * u))
-            color.setFill()
-            fillOval(c, c, s * 0.25)                        // steady bright core (a touch smaller)
-        } else {
-            // work in progress -> the same rotating-arc spinner as the menu bar
-            drawArc(c, c, r: s * 0.34, width: s * 0.15, start: phase, sweep: .pi * 1.45, color: color)
+        let icoS = h * 0.66, pad = h * 0.30, gap = h * 0.16
+        var x: CGFloat = 0
+        for (i, p) in pills.enumerated() {
+            let w = widths[i]
+            NSColor(white: 0.11, alpha: 1).setFill()
+            NSBezierPath(roundedRect: NSRect(x: x, y: y0, width: w, height: h), xRadius: h / 2, yRadius: h / 2).fill()
+            statusIcon(p.0, phase: phase, box: icoS).draw(in: NSRect(x: x + pad, y: y0 + (h - icoS) / 2, width: icoS, height: icoS))
+            let str = "\(p.1)" as NSString
+            let sz = str.size(withAttributes: attrs)
+            str.draw(at: NSPoint(x: x + pad + icoS + gap, y: y0 + (h - sz.height) / 2), withAttributes: attrs)
+            x += w + pillGap
         }
         img.unlockFocus()
         img.isTemplate = false
@@ -234,17 +255,18 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func refresh() {
         let tabs = readTabs()
-        let waiting = tabs.filter { $0.status != "working" }.count
-        let working = tabs.count - waiting
+        barWorking = tabs.filter { statusKind($0.status) == .working }.count
+        barInput   = tabs.filter { statusKind($0.status) == .input }.count
+        barReview  = tabs.filter { statusKind($0.status) == .review }.count
+        barError   = tabs.filter { statusKind($0.status) == .error }.count
         guard let button = statusItem.button else { return }
         button.imagePosition = .imageLeft
-        button.title = ""                          // counts are drawn inside the composite
-        button.toolTip = "warpwatch — \(working) working, \(waiting) awaiting"
-        barWorking = working; barWaiting = waiting
+        button.title = ""                          // counts are drawn inside the pills
+        button.toolTip = "warpwatch — \(barWorking) working, \(barInput) input, \(barReview) review"
         // ALWAYS draw a frame here so the icon is never blank between timer ticks
         // (a missing image makes the status item look like it "disappeared").
-        button.image = barComposite(working: working, waiting: waiting, phase: phase)
-        if (working + waiting) == 0 || !pulseEnabled {
+        button.image = barComposite(phase: phase)
+        if (barWorking + barInput + barReview + barError) == 0 || !pulseEnabled {
             stopPulse()
         } else {
             startPulse()
@@ -256,7 +278,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
             guard let self = self, let b = self.statusItem.button else { return }
             self.phase += 0.14
-            b.image = self.barComposite(working: self.barWorking, waiting: self.barWaiting, phase: self.phase)
+            b.image = self.barComposite(phase: self.phase)
         }
         RunLoop.main.add(t, forMode: .common)
         pulseTimer = t
@@ -284,10 +306,9 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.attributedTitle = rowTitle(t.name, t.epoch, t.agent)
                 item.target = self
                 item.representedObject = t.url
-                let waiting = t.status != "working"
-                let color = waiting ? attn : teal
-                item.image = dotImage(color, phase: menuPhase, waiting: waiting)
-                animItems.append((item, color, waiting, t.name, t.epoch, t.agent))
+                let kind = statusKind(t.status)
+                item.image = statusIcon(kind, phase: menuPhase, box: 16)
+                animItems.append((item, kind, t.name, t.epoch, t.agent))
                 menu.addItem(item)
             }
         }
@@ -309,7 +330,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self = self else { return }
             self.menuPhase += 0.10
             for a in self.animItems {
-                a.item.image = self.dotImage(a.color, phase: self.menuPhase, waiting: a.waiting)
+                a.item.image = self.statusIcon(a.kind, phase: self.menuPhase, box: 16)
                 a.item.attributedTitle = self.rowTitle(a.name, a.epoch, a.agent)   // live time (ticking seconds)
             }
         }
@@ -357,12 +378,15 @@ if ProcessInfo.processInfo.environment["WARPWATCH_SELFTEST"] != nil {
         say("  agentGlyph(\(a)) ok")
     }
     for t in tabs {
-        let waiting = t.status != "working"
-        _ = delegate.dotImage(waiting ? delegate.attn : delegate.teal, phase: 1.3, waiting: waiting).tiffRepresentation
+        _ = delegate.statusIcon(delegate.statusKind(t.status), phase: 1.3, box: 16).tiffRepresentation
         _ = delegate.rowTitle(t.name, t.epoch, t.agent).length
         say("  row [\(t.agent)] \(t.status) \(t.name) ok")
     }
-    _ = delegate.barComposite(working: 3, waiting: 2, phase: 1.3).tiffRepresentation
+    for k in [delegate.statusKind("working"), delegate.statusKind("input"), delegate.statusKind("review"), delegate.statusKind("error")] {
+        _ = delegate.statusIcon(k, phase: 1.3, box: 18).tiffRepresentation
+    }
+    delegate.barInput = 1; delegate.barWorking = 2; delegate.barReview = 1; delegate.barError = 1
+    _ = delegate.barComposite(phase: 1.3).tiffRepresentation
     say("selftest: OK")
     exit(0)
 }
