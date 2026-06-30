@@ -29,7 +29,7 @@ SVG
   command -v rsvg-convert >/dev/null && rsvg-convert -w 88 -h 88 "$1.svg" -o "$1.png" || true
 }
 
-TILE='<rect x="15" y="15" width="70" height="70" rx="18"'
+TILE='<circle cx="50" cy="50" r="38"'
 
 emit idle \
   "$TILE fill=\"#2C2C31\" stroke=\"#48484E\" stroke-width=\"2\"/>" \

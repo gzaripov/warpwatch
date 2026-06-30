@@ -1,12 +1,12 @@
 // warpwatch-bar — a tiny native macOS menu-bar app for warpwatch.
 //
-// Reads ~/.claude/warpwatch/state/tabs.tsv, shows the Warp logo in the menu
-// bar (teal=working, amber=waiting), gently PULSES while a tab is waiting,
-// and builds a dropdown of tabs — click one to jump to that exact Warp tab
+// Reads ~/.claude/warpwatch/state/tabs.tsv, shows the Warp logo badge in the
+// menu bar (teal=working, amber=waiting). While a tab is waiting the icon
+// PULSES — a bright core badge with a translucent halo that breathes — to get
+// your attention. Click a row in the dropdown to jump to that exact Warp tab
 // via its warp://session deep link. No SwiftBar, no third-party host.
 //
-// Build:  swiftc warpwatch-bar.swift -o warpwatch-bar
-//
+// Build:  swiftc -O warpwatch-bar.swift -o warpwatch-bar
 // Env: WARPWATCH_HOME (default ~/.claude/warpwatch), WARPWATCH_STATE,
 //      WARPWATCH_PULSE=0 to disable the animation.
 
@@ -19,12 +19,17 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let iconsDir: String
     let pulseEnabled: Bool
 
-    var icnIdle: NSImage!, icnWorking: NSImage!, icnWaiting: NSImage!
+    let amber = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)
+    let teal  = NSColor(red: 0.055, green: 0.592, blue: 0.651, alpha: 1)
+    let slate = NSColor(white: 0.55, alpha: 1)
+
+    var badgeIdle: NSImage!, badgeWorking: NSImage!, badgeWaiting: NSImage!
     var dotWorking: NSImage!, dotWaiting: NSImage!
 
     var refreshTimer: Timer?
     var pulseTimer: Timer?
-    var pulsePhase: Double = 0
+    var phase: Double = 0
+    let thick = NSStatusBar.system.thickness   // menu-bar height (~22–24pt)
 
     override init() {
         let home = NSHomeDirectory()
@@ -38,7 +43,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: icons
 
-    func loadIcon(_ file: String, _ size: CGFloat, fallback: NSColor) -> NSImage {
+    func loadImage(_ file: String, size: CGFloat, fallback: NSColor) -> NSImage {
         if let img = NSImage(contentsOfFile: "\(iconsDir)/\(file)") {
             img.size = NSSize(width: size, height: size)
             img.isTemplate = false
@@ -51,7 +56,29 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let img = NSImage(size: NSSize(width: size, height: size))
         img.lockFocus()
         color.setFill()
-        NSBezierPath(ovalIn: NSRect(x: 1.5, y: 1.5, width: size - 3, height: size - 3)).fill()
+        NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: size - 2, height: size - 2)).fill()
+        img.unlockFocus()
+        img.isTemplate = false
+        return img
+    }
+
+    // composite the menu-bar icon: a bright badge "core" with an optional
+    // translucent, breathing "halo" — the two-circle pulse.
+    func composite(_ badge: NSImage, halo: Bool, haloColor: NSColor) -> NSImage {
+        let s = thick
+        let img = NSImage(size: NSSize(width: s, height: s))
+        img.lockFocus()
+        if halo {
+            let t = (cos(phase) + 1) / 2                 // 1 → 0 → 1
+            let r = Double(s) * (0.40 + 0.10 * (1 - t))  // grows as it fades
+            let op = 0.10 + 0.42 * t                     // brightest when tight
+            haloColor.withAlphaComponent(CGFloat(op)).setFill()
+            let c = Double(s) / 2
+            NSBezierPath(ovalIn: NSRect(x: c - r, y: c - r, width: 2 * r, height: 2 * r)).fill()
+        }
+        let bs = s * 0.82                                // big core badge
+        let off = (s - bs) / 2
+        badge.draw(in: NSRect(x: off, y: off, width: bs, height: bs))
         img.unlockFocus()
         img.isTemplate = false
         return img
@@ -61,14 +88,11 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        let teal = NSColor(red: 0.055, green: 0.592, blue: 0.651, alpha: 1)
-        let amber = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)
-        let slate = NSColor(white: 0.55, alpha: 1)
-        icnIdle = loadIcon("idle.svg", 18, fallback: slate)
-        icnWorking = loadIcon("working.svg", 18, fallback: teal)
-        icnWaiting = loadIcon("waiting.svg", 18, fallback: amber)
-        dotWorking = loadIcon("row-working.svg", 11, fallback: teal)
-        dotWaiting = loadIcon("row-waiting.svg", 11, fallback: amber)
+        badgeIdle = loadImage("idle.svg", size: thick, fallback: slate)
+        badgeWorking = loadImage("working.svg", size: thick, fallback: teal)
+        badgeWaiting = loadImage("waiting.svg", size: thick, fallback: amber)
+        dotWorking = loadImage("row-working.svg", size: 14, fallback: teal)
+        dotWaiting = loadImage("row-waiting.svg", size: 14, fallback: amber)
 
         let menu = NSMenu()
         menu.delegate = self
@@ -92,7 +116,6 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if f.count < 6 { continue }
             tabs.append(Tab(uuid: f[0], status: f[1], name: f[3], url: f[5], epoch: Int(f[2]) ?? 0))
         }
-        // waiting (non-working) first, then by most-recent
         tabs.sort { a, b in
             let ra = a.status == "working" ? 1 : 0
             let rb = b.status == "working" ? 1 : 0
@@ -116,36 +139,33 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let waiting = tabs.filter { $0.status != "working" }.count
         let working = tabs.count - waiting
         guard let button = statusItem.button else { return }
-        if waiting > 0 {
-            button.image = icnWaiting; button.title = " \(waiting)"
-        } else if working > 0 {
-            button.image = icnWorking; button.title = ""
-        } else {
-            button.image = icnIdle; button.title = ""
-        }
         button.imagePosition = .imageLeft
         button.toolTip = "warpwatch — \(waiting) waiting, \(working) working"
-        if waiting > 0 && pulseEnabled { startPulse() } else { stopPulse() }
+        if waiting > 0 {
+            button.title = " \(waiting)"
+            if pulseEnabled { startPulse() }
+            else { stopPulse(); button.image = composite(badgeWaiting, halo: false, haloColor: amber) }
+        } else {
+            stopPulse()
+            button.title = ""
+            button.image = composite(working > 0 ? badgeWorking : badgeIdle, halo: false, haloColor: .clear)
+        }
     }
 
     func startPulse() {
         if pulseTimer != nil { return }
         let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
             guard let self = self, let b = self.statusItem.button else { return }
-            self.pulsePhase += 0.04
-            // smooth breathe between 0.4 and 1.0, ~1.3s period
-            b.alphaValue = 0.7 + 0.3 * cos(self.pulsePhase * 2 * Double.pi / 1.3)
+            self.phase += 0.16
+            b.image = self.composite(self.badgeWaiting, halo: true, haloColor: self.amber)
         }
         RunLoop.main.add(t, forMode: .common)
         pulseTimer = t
     }
 
-    func stopPulse() {
-        pulseTimer?.invalidate(); pulseTimer = nil
-        statusItem.button?.alphaValue = 1.0
-    }
+    func stopPulse() { pulseTimer?.invalidate(); pulseTimer = nil }
 
-    // MARK: dropdown (rebuilt each time it opens)
+    // MARK: dropdown
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
@@ -159,14 +179,14 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
-            let nameFont = NSFont.menuFont(ofSize: 0)
+            let font = NSFont.menuFont(ofSize: 0)
             for t in tabs {
                 let s = NSMutableAttributedString(
                     string: t.name,
-                    attributes: [.foregroundColor: NSColor.labelColor, .font: nameFont])
+                    attributes: [.foregroundColor: NSColor.labelColor, .font: font])
                 s.append(NSAttributedString(
                     string: "   ·  \(relTime(t.epoch))",
-                    attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: nameFont]))
+                    attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: font]))
                 let item = NSMenuItem(title: t.name, action: #selector(openTab(_:)), keyEquivalent: "")
                 item.attributedTitle = s
                 item.target = self

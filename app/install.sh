@@ -24,6 +24,12 @@ cat > "$PLIST" <<PLISTEOF
 </plist>
 PLISTEOF
 
-launchctl bootout "gui/$(id -u)/com.gzaripov.warpwatch" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
+DOMAIN="gui/$(id -u)"
+launchctl bootout "$DOMAIN/com.gzaripov.warpwatch" 2>/dev/null || true
+pkill -f 'WarpwatchBar.app' 2>/dev/null || true
+# bootstrap can momentarily I/O-error mid-teardown; fall back to load/kickstart.
+launchctl bootstrap "$DOMAIN" "$PLIST" 2>/dev/null \
+  || launchctl load -w "$PLIST" 2>/dev/null \
+  || launchctl kickstart -k "$DOMAIN/com.gzaripov.warpwatch" 2>/dev/null \
+  || true
 echo "installed + started — LaunchAgent: $PLIST"
