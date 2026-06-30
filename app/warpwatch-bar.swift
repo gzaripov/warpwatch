@@ -84,8 +84,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func barComposite(working: Int, waiting: Int, phase: Double) -> NSImage {
         let s = thick
         let markH = s * 0.56, markW = markH * (268.0 / 214.0)
-        let icoD = s * 0.54
-        let font = NSFont.systemFont(ofSize: s * 0.44, weight: .semibold)
+        let icoD = s * 0.80
+        let font = NSFont.systemFont(ofSize: s * 0.50, weight: .semibold)
         let countAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
         func cw(_ n: Int) -> CGFloat { ("\(n)" as NSString).size(withAttributes: countAttrs).width }
 
@@ -111,10 +111,10 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if g.waiting {
                 let u = CGFloat(phase.truncatingRemainder(dividingBy: 2.6) / 2.6)
                 g.color.withAlphaComponent((1 - u) * 0.5).setFill()
-                fillOval(cx, cy, icoD * (0.26 + 0.22 * u))
-                g.color.setFill(); fillOval(cx, cy, icoD * 0.24)
+                fillOval(cx, cy, icoD * (0.30 + 0.18 * u))
+                g.color.setFill(); fillOval(cx, cy, icoD * 0.28)
             } else {
-                drawArc(cx, cy, r: icoD * 0.34, width: icoD * 0.16, start: phase, sweep: .pi * 1.35, color: g.color)
+                drawArc(cx, cy, r: icoD * 0.37, width: icoD * 0.18, start: phase, sweep: .pi * 1.35, color: g.color)
             }
             x += icoD + icoGap
             let str = "\(g.count)" as NSString
@@ -143,12 +143,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             color.setFill()
             fillOval(c, c, s * 0.30)                        // steady bright core
         } else {
-            // work in progress -> a calm breathing glow
-            let t = CGFloat((cos(phase) + 1) / 2)
-            NSColor.white.withAlphaComponent(0.12 + 0.24 * t).setFill()
-            fillOval(c, c, s * (0.32 + 0.07 * t))
-            color.setFill()
-            fillOval(c, c, s * (0.27 + 0.02 * t))
+            // work in progress -> the same rotating-arc spinner as the menu bar
+            drawArc(c, c, r: s * 0.30, width: s * 0.13, start: phase, sweep: .pi * 1.35, color: color)
         }
         img.unlockFocus()
         img.isTemplate = false
