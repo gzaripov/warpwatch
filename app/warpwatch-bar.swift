@@ -33,7 +33,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var barWaiting = 0
     var menuTimer: Timer?
     var menuPhase: Double = 0
-    var animItems: [(item: NSMenuItem, color: NSColor, waiting: Bool, name: String, epoch: Int)] = []   // rows animated while the menu is open
+    var animItems: [(item: NSMenuItem, color: NSColor, waiting: Bool, name: String, epoch: Int, agent: String)] = []   // rows animated while the menu is open
     let thick = NSStatusBar.system.thickness   // menu-bar height (~22–24pt)
 
     override init() {
@@ -114,7 +114,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 fillOval(cx, cy, icoD * (0.30 + 0.18 * u))
                 g.color.setFill(); fillOval(cx, cy, icoD * 0.28)
             } else {
-                drawArc(cx, cy, r: icoD * 0.37, width: icoD * 0.18, start: phase, sweep: .pi * 1.35, color: g.color)
+                drawArc(cx, cy, r: icoD * 0.42, width: icoD * 0.20, start: phase, sweep: .pi * 1.45, color: g.color)
             }
             x += icoD + icoGap
             let str = "\(g.count)" as NSString
@@ -144,7 +144,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             fillOval(c, c, s * 0.25)                        // steady bright core (a touch smaller)
         } else {
             // work in progress -> the same rotating-arc spinner as the menu bar
-            drawArc(c, c, r: s * 0.30, width: s * 0.13, start: phase, sweep: .pi * 1.35, color: color)
+            drawArc(c, c, r: s * 0.34, width: s * 0.15, start: phase, sweep: .pi * 1.45, color: color)
         }
         img.unlockFocus()
         img.isTemplate = false
@@ -169,7 +169,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: state
 
-    struct Tab { let uuid, status, name, url: String; let epoch: Int }
+    struct Tab { let uuid, status, name, url, agent: String; let epoch: Int }
 
     func readTabs() -> [Tab] {
         guard let raw = try? String(contentsOfFile: stateFile, encoding: .utf8) else { return [] }
@@ -177,7 +177,8 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for line in raw.split(separator: "\n") {
             let f = String(line).components(separatedBy: "\t")
             if f.count < 6 { continue }
-            tabs.append(Tab(uuid: f[0], status: f[1], name: f[3], url: f[5], epoch: Int(f[2]) ?? 0))
+            tabs.append(Tab(uuid: f[0], status: f[1], name: f[3], url: f[5],
+                            agent: f.count > 6 ? f[6] : "claude", epoch: Int(f[2]) ?? 0))
         }
         tabs.sort { a, b in
             let ra = a.status == "working" ? 1 : 0
@@ -195,10 +196,44 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "\(d / 86400)d"
     }
 
-    func rowTitle(_ name: String, _ epoch: Int) -> NSAttributedString {
+    // small per-agent mark (own simple glyphs): a spark for Claude, code-brackets for Codex
+    func agentGlyph(_ agent: String) -> NSImage {
+        let s: CGFloat = 13
+        let img = NSImage(size: NSSize(width: s, height: s))
+        img.lockFocus()
+        let c = s / 2, lw = s * 0.13
+        if agent == "codex" {
+            NSColor(red: 0.36, green: 0.56, blue: 0.94, alpha: 1).setStroke()
+            for x0 in [(0.44, 0.22), (0.56, 0.78)] {
+                let p = NSBezierPath()
+                p.move(to: NSPoint(x: s * x0.0, y: s * 0.76))
+                p.line(to: NSPoint(x: s * x0.1, y: c))
+                p.line(to: NSPoint(x: s * x0.0, y: s * 0.24))
+                p.lineWidth = lw; p.lineCapStyle = .round; p.lineJoinStyle = .round; p.stroke()
+            }
+        } else {
+            NSColor(red: 0.80, green: 0.42, blue: 0.25, alpha: 1).setStroke()
+            for k in 0..<8 {
+                let a = Double(k) * Double.pi / 4
+                let p = NSBezierPath()
+                p.move(to: NSPoint(x: c + CGFloat(cos(a)) * s * 0.14, y: c + CGFloat(sin(a)) * s * 0.14))
+                p.line(to: NSPoint(x: c + CGFloat(cos(a)) * s * 0.44, y: c + CGFloat(sin(a)) * s * 0.44))
+                p.lineWidth = lw; p.lineCapStyle = .round; p.stroke()
+            }
+        }
+        img.unlockFocus()
+        img.isTemplate = false
+        return img
+    }
+
+    func rowTitle(_ name: String, _ epoch: Int, _ agent: String) -> NSAttributedString {
         let font = NSFont.menuFont(ofSize: 0)
-        let s = NSMutableAttributedString(
-            string: name, attributes: [.foregroundColor: NSColor.labelColor, .font: font])
+        let att = NSTextAttachment()
+        att.image = agentGlyph(agent)
+        att.bounds = NSRect(x: 0, y: font.descender, width: 13, height: 13)
+        let s = NSMutableAttributedString(attachment: att)
+        s.append(NSAttributedString(
+            string: "  " + name, attributes: [.foregroundColor: NSColor.labelColor, .font: font]))
         s.append(NSAttributedString(
             string: "   ·  \(relTime(epoch))",
             attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: font]))
@@ -254,13 +289,13 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             for t in tabs {
                 let item = NSMenuItem(title: t.name, action: #selector(openTab(_:)), keyEquivalent: "")
-                item.attributedTitle = rowTitle(t.name, t.epoch)
+                item.attributedTitle = rowTitle(t.name, t.epoch, t.agent)
                 item.target = self
                 item.representedObject = t.url
                 let waiting = t.status != "working"
                 let color = waiting ? attn : teal
                 item.image = dotImage(color, phase: menuPhase, waiting: waiting)
-                animItems.append((item, color, waiting, t.name, t.epoch))
+                animItems.append((item, color, waiting, t.name, t.epoch, t.agent))
                 menu.addItem(item)
             }
         }
@@ -283,7 +318,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.menuPhase += 0.10
             for a in self.animItems {
                 a.item.image = self.dotImage(a.color, phase: self.menuPhase, waiting: a.waiting)
-                a.item.attributedTitle = self.rowTitle(a.name, a.epoch)   // live time (ticking seconds)
+                a.item.attributedTitle = self.rowTitle(a.name, a.epoch, a.agent)   // live time (ticking seconds)
             }
         }
         RunLoop.main.add(t, forMode: .common)

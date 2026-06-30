@@ -20,7 +20,7 @@ cp "$HOOKS" "$HOOKS.bak-$(date +%Y%m%d-%H%M%S)"
 
 tmp="$(mktemp)"
 jq --arg n "$NOTIFY" '
-  def block(arg): {"hooks":[{"type":"command","command":($n + " " + arg),"timeout":10}]};
+  def block(arg): {"hooks":[{"type":"command","command":($n + " " + arg + " codex"),"timeout":10}]};
   def merge(ev; arg):
     .hooks[ev] = (((.hooks[ev] // []) | map(select((.hooks[0].command // "") | contains("warpwatch") | not))) + [block(arg)]);
   merge("UserPromptSubmit"; "start")

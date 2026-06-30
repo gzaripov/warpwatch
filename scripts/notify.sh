@@ -47,6 +47,7 @@ jget() { [ -n "$payload" ] && printf '%s' "$payload" | jq -r "$1 // empty" 2>/de
 cwd="$(jget '.cwd')"; [ -z "$cwd" ] && cwd="$PWD"
 prompt="$(jget '.prompt')"
 transcript="$(jget '.transcript_path')"
+agent="$(printf '%s' "${2:-claude}" | tr 'A-Z' 'a-z' | tr -cd 'a-z')"; [ -z "$agent" ] && agent="claude"
 
 sanitize() { printf '%s' "$1" | tr '\t\n\r' '   ' | tr -s ' ' | sed 's/^ *//;s/ *$//'; }
 now="$(date +%s)"
@@ -79,7 +80,7 @@ write_tab() { # status name
   else
     : > "$tmp"
   fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$status" "$now" "$name" "$cwd" "$focus_url" >> "$tmp"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$status" "$now" "$name" "$cwd" "$focus_url" "$agent" >> "$tmp"
   tail -n 40 "$tmp" > "$state" 2>/dev/null && rm -f "$tmp" || mv "$tmp" "$state" 2>/dev/null || true
 }
 
