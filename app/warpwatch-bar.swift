@@ -228,14 +228,15 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func rowTitle(_ name: String, _ epoch: Int, _ agent: String) -> NSAttributedString {
         let font = NSFont.menuFont(ofSize: 0)
+        let s = NSMutableAttributedString(
+            string: name, attributes: [.foregroundColor: NSColor.labelColor, .font: font])
+        s.append(NSAttributedString(string: "  ", attributes: [.font: font]))
         let att = NSTextAttachment()
         att.image = agentGlyph(agent)
         att.bounds = NSRect(x: 0, y: font.descender, width: 13, height: 13)
-        let s = NSMutableAttributedString(attachment: att)
+        s.append(NSAttributedString(attachment: att))   // agent mark after the title
         s.append(NSAttributedString(
-            string: "  " + name, attributes: [.foregroundColor: NSColor.labelColor, .font: font]))
-        s.append(NSAttributedString(
-            string: "   ·  \(relTime(epoch))",
+            string: "  ·  \(relTime(epoch))",
             attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: font]))
         return s
     }
