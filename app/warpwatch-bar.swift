@@ -64,27 +64,24 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // Menu-bar icon: Warp mark on the left, status dot on the right. While
     // waiting the dot is a bright core with a breathing translucent halo.
     func barIcon(state: String, halo: Bool) -> NSImage {
-        let h = thick
-        let markH = h * 0.60
-        let markW = markH * (268.0 / 214.0)
-        let gap = h * 0.18
-        let dotZone = h * 0.95
-        let w = markW + gap + dotZone
-        let img = NSImage(size: NSSize(width: w, height: h))
+        let s = thick                              // compact, square footprint (like claude-status-bar)
+        let img = NSImage(size: NSSize(width: s, height: s))
         img.lockFocus()
+        // Warp mark, centred
+        let mh = s * 0.58
+        let mw = mh * (268.0 / 214.0)
         if let mark = warpMark {
-            mark.draw(in: NSRect(x: 0, y: (h - markH) / 2, width: markW, height: markH))
+            mark.draw(in: NSRect(x: (s - mw) / 2, y: (s - mh) / 2, width: mw, height: mh))
         }
-        let cx = markW + gap + dotZone / 2
-        let cy = h / 2
+        // small status dot, bottom-right corner badge; pulses (size) while waiting
         let col = dotColor(state)
-        if halo {
-            let t = CGFloat((cos(phase) + 1) / 2)          // 1 → 0 → 1
-            col.withAlphaComponent(0.10 + 0.46 * t).setFill()
-            fillOval(cx, cy, h * (0.30 + 0.16 * (1 - t)))   // grows as it fades
-        }
+        let dx = s * 0.70, dy = s * 0.30
+        var r = s * 0.16
+        if halo { r *= 0.85 + 0.30 * CGFloat((cos(phase) + 1) / 2) }
+        NSColor(white: 0.0, alpha: 0.5).setFill()  // thin dark ring so the dot reads on the mark
+        fillOval(dx, dy, r + 1.2)
         col.setFill()
-        fillOval(cx, cy, h * 0.22)                          // bright core
+        fillOval(dx, dy, r)
         img.unlockFocus()
         img.isTemplate = false
         return img
@@ -93,19 +90,20 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // A dropdown row dot: a bright, high-contrast core with an optional
     // breathing halo (so it stands out on the grey menu background).
     func dotImage(_ color: NSColor, halo: Bool, phase: Double, strong: Bool) -> NSImage {
-        let s: CGFloat = 16
+        let s: CGFloat = 18                                // a little headroom so the halo never clips the bounds
         let img = NSImage(size: NSSize(width: s, height: s))
         img.lockFocus()
         let c = s / 2
         let t = CGFloat((cos(phase) + 1) / 2)              // 0 → 1 → 0
         if halo {
             let amp: CGFloat = strong ? 1.0 : 0.6          // waiting pulses harder than working
-            // a light glow (not the dot's own colour) so the dot pops on the grey menu
+            // a light glow (not the dot's own colour) so the dot pops on the grey menu.
+            // max radius 0.40*s = 7.2 < c = 9 → always fits, never hits the icon edge.
             NSColor.white.withAlphaComponent((0.18 + 0.34 * t) * amp).setFill()
-            fillOval(c, c, s * (0.42 + 0.14 * t))          // breathing ring, wider than the core
+            fillOval(c, c, s * (0.30 + 0.10 * t))          // breathing ring, wider than the core
         }
         color.setFill()
-        fillOval(c, c, s * (0.30 + 0.05 * t))              // bright coloured core, slight breathe
+        fillOval(c, c, s * (0.27 + 0.02 * t))              // bright coloured core, slight breathe
         img.unlockFocus()
         img.isTemplate = false
         return img
@@ -218,7 +216,6 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let waiting = t.status != "working"
                 let color = waiting ? attn : teal
                 item.image = dotImage(color, halo: true, phase: menuPhase, strong: waiting)
-                item.toolTip = waiting ? "Agent is waiting for your input" : "Agent is working"
                 animItems.append((item, color, waiting))
                 menu.addItem(item)
             }
