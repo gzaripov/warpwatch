@@ -2,7 +2,7 @@
 //
 // Reads ~/.claude/warpwatch/state/tabs.tsv and shows, in the menu bar, the
 // Warp logo mark followed by a status dot: grey=idle, teal=working, and an
-// amber dot that PULSES (a bright core with a breathing halo) while a tab is
+// attn dot that PULSES (a bright core with a breathing halo) while a tab is
 // waiting, to get your attention. The dropdown lists each tab with a haloed
 // status dot — click one to jump to that exact Warp tab via its warp://session
 // deep link. No SwiftBar, no third-party host.
@@ -20,7 +20,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let iconsDir: String
     let pulseEnabled: Bool
 
-    let amber = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)
+    let attn = NSColor(red: 1.0, green: 0.176, blue: 0.471, alpha: 1)   // magenta — high contrast on grey + blue
     let teal  = NSColor(red: 0.055, green: 0.592, blue: 0.651, alpha: 1)
     let slate = NSColor(white: 0.62, alpha: 1)
 
@@ -54,7 +54,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func dotColor(_ state: String) -> NSColor {
-        state == "waiting" ? amber : (state == "working" ? teal : slate)
+        state == "waiting" ? attn : (state == "working" ? teal : slate)
     }
 
     func fillOval(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat) {
@@ -215,7 +215,7 @@ final class WarpwatchApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.target = self
                 item.representedObject = t.url
                 let waiting = t.status != "working"
-                let color = waiting ? amber : teal
+                let color = waiting ? attn : teal
                 item.image = dotImage(color, halo: true, phase: menuPhase, strong: waiting)
                 item.toolTip = waiting ? "Agent is waiting for your input" : "Agent is working"
                 animItems.append((item, color, waiting))
